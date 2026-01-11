@@ -1,36 +1,68 @@
 import { Server, Socket } from "socket.io";
-import { EVENTS } from "@tuneverse/shared"; // Ensure this import works
+import { EVENTS, CreateRoomPayload, JoinRoomPayload } from "@tuneverse/shared";
+import { RoomStore } from "./state/room-store";
 
-// 1. Simple In-Memory User Store
-// Map<socketId, userId>
-const activeUsers = new Map<string, string>();
+const activeUsers = new Map<string, string>(); // socketId -> userId (kept from Phase 3)
+const socketToRoom = new Map<string, string>(); // socketId -> roomId (NEW: fast lookup)
 
 export const setupSocket = (io: Server) => {
     io.on("connection", (socket: Socket) => {
         console.log(`🔌 New Connection: ${socket.id}`);
 
-        // 2. Handle Handshake
-        socket.on(EVENTS.HANDSHAKE, (payload: { userId: string }) => {
-            const { userId } = payload;
+        // --- 1. CREATE ROOM ---
+        socket.on(EVENTS.ROOM_CREATE, (payload: CreateRoomPayload) => {
+            const { username } = payload;
+            // In a real app, userId comes from Auth, here we use socket.id for now
+            const user = { id: socket.id, username };
 
-            // Store the mapping
-            activeUsers.set(socket.id, userId);
+            const newRoom = RoomStore.createRoom(user);
 
-            console.log(`🤝 Handshake verified. Socket ${socket.id} is User ${userId}`);
+            // Socket.io grouping
+            socket.join(newRoom.id);
+            socketToRoom.set(socket.id, newRoom.id);
 
-            // Optional: Send an ack back? For now, silence is acceptance.
+            // Notify the creator
+            socket.emit(EVENTS.ROOM_UPDATE, newRoom);
+            console.log(`🏠 Room Created: ${newRoom.id} by ${username}`);
         });
 
-        // 3. Handle Disconnect
-        socket.on("disconnect", () => {
-            const userId = activeUsers.get(socket.id);
+        // --- 2. JOIN ROOM ---
+        socket.on(EVENTS.ROOM_JOIN, (payload: JoinRoomPayload) => {
+            const { roomId, username } = payload;
+            const user = { id: socket.id, username };
 
-            if (userId) {
-                console.log(`👋 User ${userId} (Socket ${socket.id}) disconnected`);
-                activeUsers.delete(socket.id);
+            const updatedRoom = RoomStore.joinRoom(roomId, user);
+
+            if (updatedRoom) {
+                socket.join(roomId);
+                socketToRoom.set(socket.id, roomId);
+
+                // Notify EVERYONE in the room (including new guy)
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                console.log(`👤 ${username} joined room ${roomId}`);
             } else {
-                console.log(`☠️ Unknown socket ${socket.id} disconnected`);
+                socket.emit(EVENTS.ERROR, { message: "Room not found" });
             }
         });
+
+        // --- 3. DISCONNECT / LEAVE ---
+        const handleLeave = () => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return;
+
+            const updatedRoom = RoomStore.leaveRoom(roomId, socket.id);
+            socketToRoom.delete(socket.id);
+
+            if (updatedRoom) {
+                // Room still exists, notify others
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                console.log(`👋 Socket ${socket.id} left room ${roomId}`);
+            } else {
+                console.log(`🗑️ Room ${roomId} deleted (empty)`);
+            }
+        };
+
+        socket.on(EVENTS.ROOM_LEAVE, handleLeave);
+        socket.on("disconnect", handleLeave);
     });
 };
