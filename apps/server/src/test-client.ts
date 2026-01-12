@@ -35,7 +35,23 @@ async function main() {
       // Listen for Room Update (Friend)
       friendSocket.on(EVENTS.ROOM_UPDATE, (r) => {
         console.log(`👋 [Friend] Room Updated: ${r.id} | Users: ${r.users.length}`);
+
+        if (r.playback.status === "PLAYING") {
+          console.log(`\n✅ [Friend] Client received PLAY command!`);
+          console.log(`   Video: ${r.playback.videoId}`);
+          console.log(`   Status: ${r.playback.status}`);
+          process.exit(0); // Success!
+        }
       });
+
+      // Wait 1 second, then Host plays music
+      setTimeout(() => {
+        console.log("\n▶️ Host hitting PLAY...");
+        hostSocket.emit(EVENTS.PLAYER_PLAY, {
+          videoId: "dQw4w9WgXcQ",
+          timestamp: 0
+        });
+      }, 1000);
     }
   });
 }

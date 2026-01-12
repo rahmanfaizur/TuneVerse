@@ -5,6 +5,16 @@ export interface User {
     color?: string;   // UI avatar color
 }
 
+// 1. Define a Video Item
+export interface Video {
+    id: string;       // "dQw4w9WgXcQ"
+    title: string;    // "Rick Astley - Never Gonna Give You Up"
+    thumbnail: string;
+    addedBy: string;  // username
+    votes: number;    // <--- NEW
+    voters: string[]; // <--- NEW: List of user IDs who voted
+}
+
 // 2. The Room State
 export type PlaybackStatus = "PLAYING" | "PAUSED" | "IDLE";
 
@@ -20,6 +30,7 @@ export interface Room {
     hostId: string;   // The user who controls playback
     users: User[];    // List of everyone in the room
     playback: PlaybackState; // <--- NEW
+    queue: Video[]; // <--- NEW: List of upcoming songs
 }
 
 // 3. Payload for Joining
@@ -31,4 +42,22 @@ export interface JoinRoomPayload {
 // 4. Payload for Creating
 export interface CreateRoomPayload {
     username: string;
+}
+
+// 3. Queue Payload
+export interface AddToQueuePayload {
+    videoId: string;
+    title?: string;
+}
+
+// 4. Search Types
+export interface SearchPayload {
+    query: string;
+}
+
+export interface SearchResult {
+    id: string;
+    title: string;
+    thumbnail: string;
+    channelTitle: string;
 }
