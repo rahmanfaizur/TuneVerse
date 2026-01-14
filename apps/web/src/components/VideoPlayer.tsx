@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import ReactPlayer from "react-player/youtube";
 import { Room, EVENTS } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
+import { SyncEngine } from "../lib/sync-engine";
 
 interface VideoPlayerProps {
     room: Room;
@@ -13,14 +14,20 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
     const [isReady, setIsReady] = useState(false);
     const isSeekingRef = useRef(false); // Flag to prevent infinite seek loops
 
-    // 1. Calculate the "Real" Server Time
+    // Initialize SyncEngine once per socket connection
+    const syncEngine = useMemo(() => {
+        if (!socket) return null;
+        return new SyncEngine(socket);
+    }, [socket]);
+
+    // 1. Calculate the "Real" Server Time using SyncEngine
     const getServerTime = () => {
-        if (room.playback.status === "PAUSED") {
-            return room.playback.timestamp;
-        }
-        const now = Date.now();
-        const timeElapsed = (now - room.playback.lastUpdated) / 1000;
-        return room.playback.timestamp + timeElapsed;
+        if (!syncEngine) return room.playback.timestamp;
+        return syncEngine.getCorrectedTime(
+            room.playback.timestamp,
+            room.playback.lastUpdated,
+            room.playback.status
+        );
     };
 
     // 2. The Sync Logic (Run this often)
@@ -30,17 +37,40 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
         const player = playerRef.current;
         const serverTime = getServerTime();
         const playerTime = player.getCurrentTime();
+        const drift = serverTime - playerTime;
+        const absDrift = Math.abs(drift);
 
-        // DRIFT THRESHOLD: 1.0 second (Tighter than before)
-        if (Math.abs(playerTime - serverTime) > 1.0) {
-            console.log(`⚡ Auto-Sync: Jumping from ${playerTime.toFixed(1)} to ${serverTime.toFixed(1)}`);
-            isSeekingRef.current = true; // Lock events
+        // ADAPTIVE CORRECTION STRATEGY
+        if (absDrift > 3.0) {
+            // SEVERE DRIFT (>3s): Hard Seek
+            console.warn(`⚠️ Severe drift: ${absDrift.toFixed(2)}s - Seeking`);
+            isSeekingRef.current = true;
             player.seekTo(serverTime, "seconds");
+            // Reset playback rate
+            const internalPlayer = player.getInternalPlayer();
+            if (internalPlayer && internalPlayer.setPlaybackRate) {
+                internalPlayer.setPlaybackRate(1);
+            }
+            setTimeout(() => { isSeekingRef.current = false; }, 1000);
+        } else if (absDrift > 0.3) {
+            // SMALL/MEDIUM DRIFT (0.3s - 3s): Adjust Playback Rate
+            // If we are behind (drift > 0), speed up. If ahead, slow down.
+            // We use 1.05x for medium, 1.02x for small.
+            const rate = drift > 0 ? 1.05 : 0.95;
+            console.log(`🔧 Drift: ${drift.toFixed(2)}s - Adjusting rate to ${rate}x`);
 
-            // Unlock after a short delay (allow seek to finish)
-            setTimeout(() => {
-                isSeekingRef.current = false;
-            }, 1000);
+            const internalPlayer = player.getInternalPlayer();
+            if (internalPlayer && internalPlayer.setPlaybackRate) {
+                internalPlayer.setPlaybackRate(rate);
+            }
+        } else {
+            // NEGLIGIBLE DRIFT (<0.3s): Normal Speed
+            const internalPlayer = player.getInternalPlayer();
+            if (internalPlayer && internalPlayer.setPlaybackRate) {
+                // Only reset if not already 1 (optimization)
+                // Note: getPlaybackRate might not be available on wrapper, so we just set it.
+                internalPlayer.setPlaybackRate(1);
+            }
         }
     };
 
@@ -112,9 +142,9 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
                     onReady={() => setIsReady(true)}
 
-                    // Check drift every 1 second while playing
+                    // Check drift every 500ms (more frequent for adaptive)
                     onProgress={checkDrift}
-                    progressInterval={1000}
+                    progressInterval={500}
 
                     onPlay={handlePlay}
                     onPause={handlePause}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useSocket } from "../../context/SocketContext";
 import { EVENTS } from "@tuneverse/shared";
 import VideoPlayer from "./VideoPlayer";
@@ -6,6 +7,7 @@ import QueueSystem from "./QueueSystem";
 
 export default function ActiveRoom({ username }: { username: string }) {
     const { socket, room } = useSocket();
+    const router = useRouter();
     const [pendingRequests, setPendingRequests] = useState<{ userId: string; username: string }[]>([]);
 
     useEffect(() => {
@@ -30,26 +32,41 @@ export default function ActiveRoom({ username }: { username: string }) {
 
     const handleLeave = () => {
         socket?.emit(EVENTS.ROOM_LEAVE);
-        // The server will handle logic, and we might wait for confirmation,
-        // but for now, we rely on the context update or refresh.
-        window.location.reload(); // Simple way to reset state for MVP
+        router.push("/lobby");
     };
 
     return (
-        <div className="flex flex-col w-full max-w-6xl mx-auto h-[80vh] gap-6">
+        <div className="flex flex-col w-full max-w-6xl mx-auto min-h-screen md:h-[80vh] gap-6 p-4 md:p-0">
 
             {/* Header */}
-            <div className="flex justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700">
+            <div className="flex flex-col md:flex-row justify-between items-center bg-gray-800 p-4 rounded-xl border border-gray-700 gap-4 md:gap-0">
                 <div>
-                    <h2 className="text-2xl font-bold text-white">Room: <span className="font-mono text-purple-400">{room.id}</span></h2>
-                    <p className="text-gray-400 text-sm">Host: {room.hostId === socket?.id ? "You" : "Another User"}</p>
+                    <h2 className="text-2xl font-bold text-white">
+                        {room.name || `Room: ${room.id}`}
+                    </h2>
+                    <p className="text-gray-400 text-sm flex items-center gap-2">
+                        Host: {room.hostId === socket?.id ? "You" : "Another User"}
+                        <span className="text-gray-600">|</span>
+                        <span className="font-mono text-purple-400 text-xs">ID: {room.id}</span>
+                    </p>
                 </div>
-                <button
-                    onClick={handleLeave}
-                    className="bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded transition"
-                >
-                    Leave Room
-                </button>
+                <div className="flex gap-2 w-full md:w-auto justify-center md:justify-end">
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(window.location.href);
+                            alert("Link copied to clipboard!");
+                        }}
+                        className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded transition flex items-center gap-2"
+                    >
+                        🔗 Share
+                    </button>
+                    <button
+                        onClick={handleLeave}
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-500 px-4 py-2 rounded transition"
+                    >
+                        Leave
+                    </button>
+                </div>
             </div>
 
             {/* Host Approval Section */}

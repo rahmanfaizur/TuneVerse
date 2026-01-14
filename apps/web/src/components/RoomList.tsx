@@ -15,8 +15,14 @@ export default function RoomList({ onJoin }: RoomListProps) {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetch("http://localhost:4000/api/rooms")
+    const fetchRooms = () => {
+        setLoading(true);
+        // Smart Fallback: Use current hostname (e.g., 192.168.x.x) if env var is missing
+        const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${host}:4000`;
+        
+        fetch(`${apiUrl}/api/rooms`)
             .then((res) => res.json())
             .then((data) => {
                 setRooms(data);
@@ -26,13 +32,25 @@ export default function RoomList({ onJoin }: RoomListProps) {
                 console.error("Failed to fetch rooms", err);
                 setLoading(false);
             });
+    };
+
+    useEffect(() => {
+        fetchRooms();
     }, []);
 
     if (loading) return <div className="text-gray-400 text-sm">Loading rooms...</div>;
 
     return (
         <div className="space-y-2">
-            <h3 className="text-gray-400 text-xs font-bold uppercase mb-2">Active Rooms</h3>
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="text-gray-400 text-xs font-bold uppercase">Active Rooms</h3>
+                <button
+                    onClick={fetchRooms}
+                    className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1"
+                >
+                    🔄 Refresh
+                </button>
+            </div>
             {rooms.length === 0 ? (
                 <div className="text-gray-500 text-sm italic">No active rooms found.</div>
             ) : (

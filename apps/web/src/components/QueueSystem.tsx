@@ -156,8 +156,8 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                             <button
                                 onClick={() => handleUpvote(video.id)}
                                 className={`p-2 rounded hover:bg-gray-600 transition ${video.voters.includes(socket?.id || "")
-                                        ? "text-purple-400 opacity-50 cursor-default"
-                                        : "text-gray-400 hover:text-purple-400"
+                                    ? "text-purple-400 opacity-50 cursor-default"
+                                    : "text-gray-400 hover:text-purple-400"
                                     }`}
                                 title="Upvote to bump this song up!"
                                 disabled={video.voters.includes(socket?.id || "")}

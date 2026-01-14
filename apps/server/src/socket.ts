@@ -12,47 +12,75 @@ export const setupSocket = (io: Server) => {
     io.on("connection", (socket: Socket) => {
         console.log(`🔌 New Connection: ${socket.id}`);
 
+        // --- 0. CLOCK SYNC ---
+        socket.on(EVENTS.SYNC_CLOCK, (payload: { clientSendTime: number }) => {
+            const serverReceiveTime = Date.now();
+            socket.emit(EVENTS.SYNC_CLOCK_RESPONSE, {
+                clientSendTime: payload.clientSendTime,
+                serverReceiveTime,
+                serverSendTime: Date.now()
+            });
+        });
+
+        socket.on(EVENTS.SYNC_PING, (payload: { clientSendTime: number }) => {
+            socket.emit(EVENTS.SYNC_PONG, {
+                clientSendTime: payload.clientSendTime,
+                serverTime: Date.now()
+            });
+        });
+
         // --- 1. CREATE ROOM ---
-        socket.on(EVENTS.ROOM_CREATE, async (payload: CreateRoomPayload) => {
-            const { username } = payload;
+        // --- 1. CREATE ROOM ---
+        socket.on(EVENTS.ROOM_CREATE, (payload: CreateRoomPayload & { isPersistent?: boolean }) => {
+            const { username, isPersistent, roomName } = payload;
             // In a real app, userId comes from Auth, here we use socket.id for now
             const user = { id: socket.id, username };
 
             const newRoom = RoomStore.createRoom(user);
-
-            // Sync with DB
-            try {
-                // Ensure user exists
-                let dbUser = await prisma.user.findUnique({ where: { username } });
-                if (!dbUser) {
-                    dbUser = await prisma.user.create({ data: { username } });
-                }
-
-                await prisma.room.create({
-                    data: {
-                        id: newRoom.id, // Sync ID
-                        name: `${username}'s Room`,
-                        hostId: dbUser.id,
-                        isPublic: true,
-                        participants: {
-                            create: {
-                                userId: dbUser.id,
-                                status: "APPROVED"
-                            }
-                        }
-                    }
-                });
-            } catch (e) {
-                console.error("DB Room Create Error", e);
+            if (roomName) {
+                newRoom.name = roomName;
             }
+            // @ts-ignore - Adding runtime property
+            newRoom.isPersistent = !!isPersistent;
+            // @ts-ignore - Adding runtime property
+            newRoom.isPersistent = !!isPersistent;
 
             // Socket.io grouping
             socket.join(newRoom.id);
             socketToRoom.set(socket.id, newRoom.id);
 
-            // Notify the creator
+            // Notify the creator IMMEDIATELY (Optimistic UI)
             socket.emit(EVENTS.ROOM_UPDATE, newRoom);
             console.log(`🏠 Room Created: ${newRoom.id} by ${username}`);
+
+            // Sync with DB (Async / Fire & Forget)
+            (async () => {
+                try {
+                    // Ensure user exists
+                    let dbUser = await prisma.user.findUnique({ where: { username } });
+                    if (!dbUser) {
+                        dbUser = await prisma.user.create({ data: { username } });
+                    }
+
+                    await prisma.room.create({
+                        data: {
+                            id: newRoom.id, // Sync ID
+                            name: newRoom.name || `${username}'s Room`,
+                            hostId: dbUser.id,
+                            isPublic: true,
+                            isPersistent: !!isPersistent,
+                            participants: {
+                                create: {
+                                    userId: dbUser.id,
+                                    status: "APPROVED"
+                                }
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error("DB Room Create Error", e);
+                }
+            })();
         });
 
         // --- 2. JOIN ROOM ---
@@ -72,6 +100,25 @@ export const setupSocket = (io: Server) => {
                 // Notify EVERYONE in the room (including new guy)
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
                 console.log(`👤 ${username} joined room ${roomId}`);
+
+                // Async DB Sync (Fire & Forget)
+                (async () => {
+                    try {
+                        let dbUser = await prisma.user.findUnique({ where: { username } });
+                        if (!dbUser) {
+                            dbUser = await prisma.user.create({ data: { username } });
+                        }
+                        await prisma.roomParticipant.create({
+                            data: {
+                                userId: dbUser.id,
+                                roomId: roomId,
+                                status: "APPROVED"
+                            }
+                        });
+                    } catch (e) {
+                        console.error("DB Join Error", e);
+                    }
+                })();
             } else {
                 socket.emit(EVENTS.ERROR, { message: "Room not found" });
             }
@@ -96,11 +143,54 @@ export const setupSocket = (io: Server) => {
                 // Room still exists, notify others
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
                 console.log(`👋 Socket ${socket.id} left room ${roomId}`);
+
+                // Async DB Sync: Remove Participant
+                // We need the username to find the user, but we only have socketId.
+                // activeUsers map has socketId -> userId (username)
+                const username = activeUsers.get(socket.id);
+                if (username) {
+                    (async () => {
+                        try {
+                            const dbUser = await prisma.user.findUnique({ where: { username } });
+                            if (dbUser) {
+                                await prisma.roomParticipant.deleteMany({
+                                    where: { userId: dbUser.id, roomId: roomId }
+                                });
+                            }
+                        } catch (e) {
+                            console.error("DB Leave Error", e);
+                        }
+                    })();
+                }
+
             } else {
-                console.log(`🗑️ Room ${roomId} deleted (empty)`);
-                // Delete from DB
-                prisma.room.delete({ where: { id: roomId } })
-                    .catch((e) => console.error("DB Room Delete Error", e));
+                // Only delete if NOT persistent
+                // @ts-ignore
+                const room = RoomStore.getRoom(roomId);
+                // If room is already gone from store (leaveRoom returns null if empty/deleted), we need to check if we should keep it.
+                // Actually RoomStore.leaveRoom deletes it from memory if empty.
+                // We need to modify RoomStore to NOT delete if persistent, OR we handle DB deletion here.
+
+                // Let's check DB for persistence if we don't have it in memory anymore?
+                // Optimization: We should probably store isPersistent in RoomStore.
+
+                // For now, let's assume if it was deleted from memory, we check DB?
+                // Better approach: Update RoomStore to handle persistence.
+
+                // TEMPORARY FIX: We will query DB to see if it should be deleted.
+                (async () => {
+                    try {
+                        const dbRoom = await prisma.room.findUnique({ where: { id: roomId } });
+                        if (dbRoom && !dbRoom.isPersistent) {
+                            console.log(`🗑️ Room ${roomId} deleted (empty & transient)`);
+                            await prisma.room.delete({ where: { id: roomId } });
+                        } else {
+                            console.log(`💾 Room ${roomId} persisted (empty)`);
+                        }
+                    } catch (e) {
+                        console.error("DB Cleanup Error", e);
+                    }
+                })();
             }
         };
 

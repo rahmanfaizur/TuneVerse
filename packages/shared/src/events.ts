@@ -27,4 +27,10 @@ export const EVENTS = {
     // Join Approval
     JOIN_REQUEST: "JOIN_REQUEST",     // Server -> Host (User wants to join)
     JOIN_DECISION: "JOIN_DECISION",   // Host -> Server (Approve/Reject)
+
+    // Sync Events
+    SYNC_CLOCK: "SYNC_CLOCK",
+    SYNC_CLOCK_RESPONSE: "SYNC_CLOCK_RESPONSE",
+    SYNC_PING: "SYNC_PING",
+    SYNC_PONG: "SYNC_PONG",
 } as const;

@@ -27,6 +27,7 @@ export interface PlaybackState {
 
 export interface Room {
     id: string;
+    name?: string; // <--- NEW: Custom room name
     hostId: string;   // The user who controls playback
     users: User[];    // List of everyone in the room
     playback: PlaybackState; // <--- NEW
@@ -42,6 +43,7 @@ export interface JoinRoomPayload {
 // 4. Payload for Creating
 export interface CreateRoomPayload {
     username: string;
+    roomName?: string;
 }
 
 // 3. Queue Payload
