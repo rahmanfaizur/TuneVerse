@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 
 interface Room {
     id: string;
-    name: string;
-    host: { username: string };
-    participants: { id: string }[];
+    name?: string;
+    hostId: string;
+    users: { id: string; username: string }[];
 }
 
 interface RoomListProps {
     onJoin: (roomId: string) => void;
+    refreshKey?: number;
 }
 
-export default function RoomList({ onJoin }: RoomListProps) {
+export default function RoomList({ onJoin, refreshKey }: RoomListProps) {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -21,7 +22,7 @@ export default function RoomList({ onJoin }: RoomListProps) {
         const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
         const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${host}:4000`;
-        
+
         fetch(`${apiUrl}/api/rooms`)
             .then((res) => res.json())
             .then((data) => {
@@ -36,41 +37,50 @@ export default function RoomList({ onJoin }: RoomListProps) {
 
     useEffect(() => {
         fetchRooms();
-    }, []);
+    }, [refreshKey]);
 
-    if (loading) return <div className="text-gray-400 text-sm">Loading rooms...</div>;
+    if (loading) return <div className="text-gray-400 text-xs text-center font-sans tracking-widest uppercase">Loading rooms...</div>;
 
     return (
-        <div className="space-y-2">
-            <div className="flex justify-between items-center mb-2">
-                <h3 className="text-gray-400 text-xs font-bold uppercase">Active Rooms</h3>
+        <div className="space-y-4">
+            <div className="flex justify-between items-end border-b border-black dark:border-white pb-2">
+                <h3 className="text-black dark:text-white font-serif text-xl italic">Active Sessions</h3>
                 <button
                     onClick={fetchRooms}
-                    className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1"
+                    className="text-[10px] font-sans uppercase tracking-widest hover:opacity-50 transition text-black dark:text-white"
                 >
-                    🔄 Refresh
+                    Refresh List
                 </button>
             </div>
             {rooms.length === 0 ? (
-                <div className="text-gray-500 text-sm italic">No active rooms found.</div>
+                <div className="text-gray-400 text-sm font-serif italic text-center py-4">No active sessions found.</div>
             ) : (
-                rooms.map((room) => (
-                    <div
-                        key={room.id}
-                        className="bg-gray-800/50 p-3 rounded-lg flex items-center justify-between hover:bg-gray-800 transition border border-gray-700"
-                    >
-                        <div>
-                            <p className="text-gray-200 font-bold text-sm">{room.name}</p>
-                            <p className="text-gray-500 text-xs">Host: {room.host.username} • {room.participants.length} Users</p>
-                        </div>
-                        <button
-                            onClick={() => onJoin(room.id)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1.5 rounded font-bold transition"
-                        >
-                            JOIN
-                        </button>
-                    </div>
-                ))
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {rooms.map((room) => {
+                        const hostName = room.users.find(u => u.id === room.hostId)?.username || "Unknown";
+                        return (
+                            <div
+                                key={room.id}
+                                className="py-4 flex items-center justify-between group"
+                            >
+                                <div>
+                                    <p className="text-black dark:text-white font-serif text-lg leading-none group-hover:italic transition-all">
+                                        {room.name || `Session ${room.id}`}
+                                    </p>
+                                    <p className="text-gray-400 text-[10px] uppercase tracking-widest mt-1">
+                                        Host: {hostName} • {room.users.length} Users
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => onJoin(room.id)}
+                                    className="text-xs font-sans font-bold uppercase tracking-widest border border-black dark:border-white px-4 py-2 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition text-black dark:text-white"
+                                >
+                                    Join
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
             )}
         </div>
     );

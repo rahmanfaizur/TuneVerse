@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Room, EVENTS, SearchResult } from "@tuneverse/shared";
+import { useState, useEffect, useRef } from "react";
+import { EVENTS, Room } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 
 interface QueueSystemProps {
@@ -7,17 +7,66 @@ interface QueueSystemProps {
     socket: Socket | null;
 }
 
-export default function QueueSystem({ room, socket }: QueueSystemProps) {
-    const [input, setInput] = useState("");
-    const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
+interface SearchResult {
+    id: string;
+    title: string;
+    thumbnail: string;
+    channelTitle: string;
+}
 
-    // Listen for search results
+// Simple debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
+export default function QueueSystem({ room, socket }: QueueSystemProps) {
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState<SearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const debouncedQuery = useDebounce(query, 500);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    const queue = room.queue || [];
+
+    // Handle outside click to close dropdown
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Search Effect
+    useEffect(() => {
+        if (!debouncedQuery.trim() || !socket) {
+            setResults([]);
+            return;
+        }
+
+        setIsSearching(true);
+        socket.emit(EVENTS.SEARCH_QUERY, { query: debouncedQuery });
+        setShowDropdown(true);
+    }, [debouncedQuery, socket]);
+
+    // Listen for results
     useEffect(() => {
         if (!socket) return;
 
-        const handleResults = (results: SearchResult[]) => {
-            setSearchResults(results);
+        const handleResults = (data: SearchResult[]) => {
+            setResults(data);
             setIsSearching(false);
         };
 
@@ -27,143 +76,102 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         };
     }, [socket]);
 
-    // Debounced Search
-    useEffect(() => {
-        if (!socket || !input) {
-            setSearchResults([]);
-            return;
-        }
-
-        // If it looks like a URL, don't search
-        if (input.includes("youtube.com") || input.includes("youtu.be")) return;
-
-        const timer = setTimeout(() => {
-            console.log("Searching:", input);
-            setIsSearching(true);
-            socket.emit(EVENTS.SEARCH_QUERY, { query: input });
-        }, 500); // 500ms debounce
-
-        return () => clearTimeout(timer);
-    }, [input, socket]);
-
-    // Helper: Extract Video ID from URL (Regex)
-    const getYoutubeId = (url: string) => {
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-        const match = url.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null;
-    };
-
-    const handleSubmit = () => {
-        if (!socket || !input) return;
-
-        const videoId = getYoutubeId(input);
-
-        if (videoId) {
-            // It's a direct URL
-            console.log("Adding URL:", videoId);
-            socket.emit(EVENTS.QUEUE_ADD, { videoId });
-            setInput("");
-            setSearchResults([]);
-        }
-    };
-
-    const handleAddResult = (video: SearchResult) => {
+    const handleAdd = (video: SearchResult) => {
         if (!socket) return;
         socket.emit(EVENTS.QUEUE_ADD, { videoId: video.id });
-        setSearchResults([]); // Clear results after adding
-        setInput("");
+        setQuery("");
+        setResults([]);
+        setShowDropdown(false);
     };
 
-    const handleUpvote = (videoId: string) => {
+    const handleDelete = (index: number) => {
         if (!socket) return;
-        socket.emit(EVENTS.QUEUE_UPVOTE, { videoId });
+        socket.emit(EVENTS.QUEUE_REMOVE, { roomId: room.id, index });
     };
 
     return (
-        <div className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col h-full overflow-hidden relative">
+        <div className="flex flex-col h-full relative" ref={wrapperRef}>
+            <h3 className="font-serif italic text-lg mb-4 text-black dark:text-white">Queue</h3>
 
-            {/* 1. Search / Add Header */}
-            <div className="p-4 border-b border-gray-700 bg-gray-800/50 z-20 relative">
-                <h3 className="font-bold text-gray-300 mb-2">🎵 Queue & Search</h3>
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        placeholder="Search song or paste URL..."
-                        className="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:border-purple-500 outline-none"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                    />
-                    <button
-                        onClick={handleSubmit}
-                        className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded text-sm font-bold transition"
-                    >
-                        +
-                    </button>
-                </div>
+            {/* Search Input */}
+            <div className="relative mb-6 z-20">
+                <input
+                    type="text"
+                    placeholder="SEARCH YOUTUBE"
+                    className="w-full py-2 bg-transparent border-b border-black dark:border-white outline-none font-sans text-xs uppercase tracking-widest placeholder:text-gray-400 dark:placeholder:text-gray-500 text-black dark:text-white focus:border-b-2 transition-all"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onFocus={() => {
+                        if (results.length > 0) setShowDropdown(true);
+                    }}
+                />
+                {isSearching && (
+                    <div className="absolute right-0 top-2">
+                        <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                )}
 
-                {/* Search Results Dropdown */}
-                {(searchResults.length > 0 || isSearching) && input && !input.includes("http") && (
-                    <div className="absolute top-full left-0 right-0 bg-gray-900 border border-gray-700 shadow-xl rounded-b-xl max-h-80 overflow-y-auto z-50">
-                        {isSearching && <div className="p-4 text-center text-gray-500 text-sm">Searching...</div>}
-
-                        {searchResults.map((result) => (
-                            <div
-                                key={result.id}
-                                className="flex items-center gap-3 p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 last:border-0 transition"
-                                onClick={() => handleAddResult(result)}
+                {/* Dropdown Results */}
+                {showDropdown && results.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-black border border-black dark:border-white shadow-xl max-h-80 overflow-y-auto">
+                        {results.map((video) => (
+                            <button
+                                key={video.id}
+                                onClick={() => handleAdd(video)}
+                                className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-900 flex gap-3 items-center group transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
                             >
-                                <img src={result.thumbnail} alt="thumb" className="w-12 h-9 object-cover rounded" />
+                                <img
+                                    src={video.thumbnail}
+                                    alt={video.title}
+                                    className="w-16 h-9 object-cover grayscale group-hover:grayscale-0 transition-all"
+                                />
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-gray-200 truncate">{result.title}</p>
-                                    <p className="text-xs text-gray-500 truncate">{result.channelTitle}</p>
+                                    <p className="font-serif text-sm truncate text-black dark:text-white group-hover:italic">
+                                        {video.title}
+                                    </p>
+                                    <p className="text-[9px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                        {video.channelTitle}
+                                    </p>
                                 </div>
-                                <span className="text-purple-400 text-xs font-bold">+ ADD</span>
-                            </div>
+                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
+                                    Add
+                                </span>
+                            </button>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* 3. The Queue List */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 z-10">
-                {room.queue.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8 text-sm">
-                        The queue is empty.<br />Search or paste a link to start!
+            {/* Queue List */}
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4 z-10">
+                {queue.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400 dark:text-gray-600">
+                        <p className="font-serif italic text-sm">The queue is empty.</p>
+                        <p className="text-[10px] font-sans uppercase tracking-widest mt-1">Search to add a vibe.</p>
                     </div>
                 ) : (
-                    room.queue.map((video, index) => (
-                        <div key={`${video.id}-${index}`} className="flex items-center gap-3 p-2 bg-gray-700/30 rounded hover:bg-gray-700/50 transition group">
-                            {/* Thumbnail */}
-                            <img
-                                src={video.thumbnail}
-                                alt="thumb"
-                                className="w-12 h-9 object-cover rounded bg-black"
-                            />
-
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-200 truncate">{video.title}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                    <span>Added by {video.addedBy}</span>
-                                    {video.votes > 0 && (
-                                        <span className="text-purple-400 font-bold">🔥 {video.votes}</span>
-                                    )}
-                                </div>
+                    queue.map((video, index) => (
+                        <div key={`${video.id}-${index}`} className="group flex gap-3 items-start">
+                            <div className="w-6 text-[10px] font-mono text-gray-400 dark:text-gray-600 pt-1">
+                                {(index + 1).toString().padStart(2, '0')}
                             </div>
-
-                            {/* Upvote Button */}
-                            <button
-                                onClick={() => handleUpvote(video.id)}
-                                className={`p-2 rounded hover:bg-gray-600 transition ${video.voters.includes(socket?.id || "")
-                                    ? "text-purple-400 opacity-50 cursor-default"
-                                    : "text-gray-400 hover:text-purple-400"
-                                    }`}
-                                title="Upvote to bump this song up!"
-                                disabled={video.voters.includes(socket?.id || "")}
-                            >
-                                ▲
-                            </button>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-serif text-sm leading-tight truncate text-black dark:text-white group-hover:underline decoration-1 underline-offset-2">
+                                    {video.title}
+                                </p>
+                                <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">
+                                    Added by {video.addedBy}
+                                </p>
+                            </div>
+                            {/* Delete button (only for host or adder) */}
+                            {(room.hostId === socket?.id || video.addedBy === socket?.id) && (
+                                <button
+                                    onClick={() => handleDelete(index)}
+                                    className="opacity-0 group-hover:opacity-100 text-[10px] uppercase tracking-widest text-red-500 hover:text-red-600 transition"
+                                >
+                                    Remove
+                                </button>
+                            )}
                         </div>
                     ))
                 )}

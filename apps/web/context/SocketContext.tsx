@@ -8,6 +8,7 @@ interface SocketContextType {
     socket: Socket | null;
     isConnected: boolean;
     room: Room | null;
+    error: string | null; // <--- NEW
     login: (username: string) => void;
     logout: () => void;
 }
@@ -16,6 +17,7 @@ const SocketContext = createContext<SocketContextType>({
     socket: null,
     isConnected: false,
     room: null,
+    error: null,
     login: () => { },
     logout: () => { },
 });
@@ -25,7 +27,8 @@ export const useSocket = () => useContext(SocketContext);
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [room, setRoom] = useState<Room | null>(null); // <--- NEW
+    const [room, setRoom] = useState<Room | null>(null);
+    const [error, setError] = useState<string | null>(null); // <--- NEW
 
     useEffect(() => {
         // Smart Fallback: Use current hostname (e.g., 192.168.x.x) if env var is missing
@@ -41,6 +44,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         socketInstance.on("connect", () => {
             setIsConnected(true);
+            setError(null); // Clear error on connect
         });
 
         socketInstance.on("disconnect", () => {
@@ -51,6 +55,12 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: Room) => {
             console.log("🏠 Room Updated:", updatedRoom);
             setRoom(updatedRoom);
+            setError(null); // Clear error on successful update
+        });
+
+        socketInstance.on(EVENTS.ERROR, (payload: { message: string }) => {
+            console.error("🚨 Socket Error:", payload.message);
+            setError(payload.message);
         });
 
         // Auto-login check
@@ -80,7 +90,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <SocketContext.Provider value={{ socket, isConnected, room, login, logout }}>
+        <SocketContext.Provider value={{ socket, isConnected, room, error, login, logout }}>
             {children}
         </SocketContext.Provider>
     );

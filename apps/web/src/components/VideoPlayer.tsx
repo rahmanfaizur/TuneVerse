@@ -131,54 +131,82 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
     return (
         <div className="w-full h-full bg-black relative flex flex-col group">
-            <div className="flex-1 relative">
-                <ReactPlayer
-                    ref={playerRef}
-                    url={`https://www.youtube.com/watch?v=${room.playback.videoId || "dQw4w9WgXcQ"}`}
-                    width="100%"
-                    height="100%"
-                    playing={room.playback.status === "PLAYING"}
-                    controls={true}
+            <div className="flex-1 relative bg-black dark:bg-black flex items-center justify-center overflow-hidden">
+                {!room.playback.videoId ? (
+                    <div className="text-center space-y-6 p-8 animate-in fade-in duration-700">
+                        <div className="w-24 h-24 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-3xl md:text-4xl font-serif italic text-white tracking-wide">
+                                No Media Playing
+                            </h3>
+                            <p className="text-[10px] font-sans uppercase tracking-[0.3em] text-gray-500">
+                                Add a track to the queue to start
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <ReactPlayer
+                        ref={playerRef}
+                        url={`https://www.youtube.com/watch?v=${room.playback.videoId}`}
+                        width="100%"
+                        height="100%"
+                        playing={room.playback.status === "PLAYING"}
+                        controls={true}
+                        config={{
+                            playerVars: {
+                                origin: typeof window !== "undefined" ? window.location.origin : undefined,
+                                playsinline: 1,
+                            },
+                        }}
 
-                    onReady={() => setIsReady(true)}
+                        onReady={() => setIsReady(true)}
 
-                    // Check drift every 500ms (more frequent for adaptive)
-                    onProgress={checkDrift}
-                    progressInterval={500}
+                        // Check drift every 500ms (more frequent for adaptive)
+                        onProgress={checkDrift}
+                        progressInterval={500}
 
-                    onPlay={handlePlay}
-                    onPause={handlePause}
-                    onSeek={handleSeek}
-                    onEnded={handleEnded}
-                />
+                        onPlay={handlePlay}
+                        onPause={handlePause}
+                        onSeek={handleSeek}
+                        onEnded={handleEnded}
+                    />
+                )}
             </div>
 
             {/* Control Bar */}
             <div className="bg-gray-900 border-t border-gray-700 p-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={handlePrevious}
-                        className="text-gray-400 hover:text-white transition"
-                        title="Previous"
-                    >
-                        ⏮️
-                    </button>
+                {room.hostId === socket?.id ? (
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handlePrevious}
+                            className="text-gray-400 hover:text-white transition"
+                            title="Previous"
+                        >
+                            ⏮️
+                        </button>
 
-                    <button
-                        onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
-                        className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition font-bold"
-                    >
-                        {room.playback.status === "PLAYING" ? "⏸" : "▶"}
-                    </button>
+                        <button
+                            onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
+                            className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition font-bold"
+                        >
+                            {room.playback.status === "PLAYING" ? "⏸" : "▶"}
+                        </button>
 
-                    <button
-                        onClick={handleSkip}
-                        className="text-gray-400 hover:text-white transition"
-                        title="Skip"
-                    >
-                        ⏭️
-                    </button>
-                </div>
+                        <button
+                            onClick={handleSkip}
+                            className="text-gray-400 hover:text-white transition"
+                            title="Skip"
+                        >
+                            ⏭️
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 text-gray-500 text-xs font-sans uppercase tracking-widest">
+                        <span>Synced with Host</span>
+                    </div>
+                )}
 
                 <div className="text-xs text-gray-500 font-mono">
                     {room.playback.status}

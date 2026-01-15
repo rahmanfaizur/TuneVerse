@@ -3,7 +3,7 @@ import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tune
 import { RoomStore } from "./state/room-store";
 import ytsr from "ytsr";
 import ytpl from "ytpl";
-import { prisma } from "@tuneverse/database";
+
 
 const activeUsers = new Map<string, string>(); // socketId -> userId (kept from Phase 3)
 const socketToRoom = new Map<string, string>(); // socketId -> roomId (NEW: fast lookup)
@@ -51,36 +51,10 @@ export const setupSocket = (io: Server) => {
 
             // Notify the creator IMMEDIATELY (Optimistic UI)
             socket.emit(EVENTS.ROOM_UPDATE, newRoom);
+            socket.emit(EVENTS.ROOM_CREATED, { roomId: newRoom.id });
             console.log(`🏠 Room Created: ${newRoom.id} by ${username}`);
 
-            // Sync with DB (Async / Fire & Forget)
-            (async () => {
-                try {
-                    // Ensure user exists
-                    let dbUser = await prisma.user.findUnique({ where: { username } });
-                    if (!dbUser) {
-                        dbUser = await prisma.user.create({ data: { username } });
-                    }
 
-                    await prisma.room.create({
-                        data: {
-                            id: newRoom.id, // Sync ID
-                            name: newRoom.name || `${username}'s Room`,
-                            hostId: dbUser.id,
-                            isPublic: true,
-                            isPersistent: !!isPersistent,
-                            participants: {
-                                create: {
-                                    userId: dbUser.id,
-                                    status: "APPROVED"
-                                }
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error("DB Room Create Error", e);
-                }
-            })();
         });
 
         // --- 2. JOIN ROOM ---
@@ -97,28 +71,14 @@ export const setupSocket = (io: Server) => {
                 socket.join(roomId);
                 socketToRoom.set(socket.id, roomId);
 
+                // Notify the joiner specifically
+                socket.emit(EVENTS.ROOM_JOINED, { roomId });
+
                 // Notify EVERYONE in the room (including new guy)
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
                 console.log(`👤 ${username} joined room ${roomId}`);
 
-                // Async DB Sync (Fire & Forget)
-                (async () => {
-                    try {
-                        let dbUser = await prisma.user.findUnique({ where: { username } });
-                        if (!dbUser) {
-                            dbUser = await prisma.user.create({ data: { username } });
-                        }
-                        await prisma.roomParticipant.create({
-                            data: {
-                                userId: dbUser.id,
-                                roomId: roomId,
-                                status: "APPROVED"
-                            }
-                        });
-                    } catch (e) {
-                        console.error("DB Join Error", e);
-                    }
-                })();
+
             } else {
                 socket.emit(EVENTS.ERROR, { message: "Room not found" });
             }
@@ -144,24 +104,7 @@ export const setupSocket = (io: Server) => {
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
                 console.log(`👋 Socket ${socket.id} left room ${roomId}`);
 
-                // Async DB Sync: Remove Participant
-                // We need the username to find the user, but we only have socketId.
-                // activeUsers map has socketId -> userId (username)
-                const username = activeUsers.get(socket.id);
-                if (username) {
-                    (async () => {
-                        try {
-                            const dbUser = await prisma.user.findUnique({ where: { username } });
-                            if (dbUser) {
-                                await prisma.roomParticipant.deleteMany({
-                                    where: { userId: dbUser.id, roomId: roomId }
-                                });
-                            }
-                        } catch (e) {
-                            console.error("DB Leave Error", e);
-                        }
-                    })();
-                }
+
 
             } else {
                 // Only delete if NOT persistent
@@ -177,20 +120,7 @@ export const setupSocket = (io: Server) => {
                 // For now, let's assume if it was deleted from memory, we check DB?
                 // Better approach: Update RoomStore to handle persistence.
 
-                // TEMPORARY FIX: We will query DB to see if it should be deleted.
-                (async () => {
-                    try {
-                        const dbRoom = await prisma.room.findUnique({ where: { id: roomId } });
-                        if (dbRoom && !dbRoom.isPersistent) {
-                            console.log(`🗑️ Room ${roomId} deleted (empty & transient)`);
-                            await prisma.room.delete({ where: { id: roomId } });
-                        } else {
-                            console.log(`💾 Room ${roomId} persisted (empty)`);
-                        }
-                    } catch (e) {
-                        console.error("DB Cleanup Error", e);
-                    }
-                })();
+
             }
         };
 

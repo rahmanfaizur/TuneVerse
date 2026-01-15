@@ -3,7 +3,7 @@ import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import { setupSocket } from "./socket";
-import { prisma } from "@tuneverse/database";
+import { RoomStore } from "./state/room-store";
 
 const app = express();
 
@@ -11,12 +11,13 @@ app.use(cors());
 app.use(express.json());
 
 // API Routes
-app.get("/api/rooms", async (req, res) => {
+app.get("/api/rooms", (req, res) => {
     try {
-        const rooms = await prisma.room.findMany({
-            where: { isPublic: true },
-            include: { host: true, participants: true }
-        });
+        const rooms = RoomStore.getAllRooms().map(room => ({
+            ...room,
+            host: room.users.find(u => u.id === room.hostId) || { username: "Unknown" },
+            participants: room.users
+        }));
         res.json(rooms);
     } catch (e) {
         console.error(e);
@@ -24,29 +25,22 @@ app.get("/api/rooms", async (req, res) => {
     }
 });
 
-app.post("/api/rooms", async (req, res) => {
+app.post("/api/rooms", (req, res) => {
     try {
         const { name, username } = req.body;
 
-        // Create User if not exists (simple auth for now)
-        let user = await prisma.user.findUnique({ where: { username } });
-        if (!user) {
-            user = await prisma.user.create({ data: { username } });
+        // Create a temporary user object for the host
+        const user = {
+            id: `user-${Date.now()}`, // Simple ID generation
+            username
+        };
+
+        const room = RoomStore.createRoom(user);
+        if (name) {
+            room.name = name;
         }
 
-        const room = await prisma.room.create({
-            data: {
-                name,
-                hostId: user.id,
-                isPublic: true,
-                participants: {
-                    create: {
-                        userId: user.id,
-                        status: "APPROVED"
-                    }
-                }
-            }
-        });
+        // No DB sync needed
 
         res.json(room);
     } catch (e) {

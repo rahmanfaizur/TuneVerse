@@ -157,4 +157,8 @@ export const RoomStore = {
 
         return room;
     },
+
+    getAllRooms: (): Room[] => {
+        return Array.from(rooms.values());
+    },
 };

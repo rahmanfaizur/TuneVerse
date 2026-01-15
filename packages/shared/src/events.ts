@@ -3,7 +3,9 @@ export const EVENTS = {
 
     // Room Events
     ROOM_CREATE: "ROOM_CREATE", // Client -> Server
+    ROOM_CREATED: "ROOM_CREATED", // Server -> Client (Success response)
     ROOM_JOIN: "ROOM_JOIN",     // Client -> Server
+    ROOM_JOINED: "ROOM_JOINED", // Server -> Client (Success response for joiner)
     ROOM_LEAVE: "ROOM_LEAVE",   // Client -> Server
 
     // Server Updates
@@ -18,6 +20,7 @@ export const EVENTS = {
     PLAYER_PREVIOUS: "PLAYER_PREVIOUS", // <--- NEW
 
     QUEUE_ADD: "QUEUE_ADD", // Client -> Server
+    QUEUE_REMOVE: "QUEUE_REMOVE", // Client -> Server
     QUEUE_UPVOTE: "QUEUE_UPVOTE", // <--- NEW
 
     SEARCH_QUERY: "SEARCH_QUERY",     // <--- NEW
