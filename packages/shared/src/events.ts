@@ -28,12 +28,22 @@ export const EVENTS = {
     PLAYER_ENDED: "PLAYER_ENDED", // Client -> Server (Host only usually)
 
     // Join Approval
-    JOIN_REQUEST: "JOIN_REQUEST",     // Server -> Host (User wants to join)
-    JOIN_DECISION: "JOIN_DECISION",   // Host -> Server (Approve/Reject)
+    JOIN_REQUEST: "JOIN_REQUEST",           // Client -> Server (User wants to join)
+    JOIN_REQUEST_RECEIVED: "JOIN_REQUEST_RECEIVED", // Server -> Host (Host sees request)
+    JOIN_DECISION: "JOIN_DECISION",         // Host -> Server (Approve/Reject)
+    JOIN_APPROVED: "JOIN_APPROVED",         // Server -> Client (Success)
+    JOIN_REJECTED: "JOIN_REJECTED",         // Server -> Client (Failure)
 
     // Sync Events
     SYNC_CLOCK: "SYNC_CLOCK",
     SYNC_CLOCK_RESPONSE: "SYNC_CLOCK_RESPONSE",
     SYNC_PING: "SYNC_PING",
     SYNC_PONG: "SYNC_PONG",
+
+    // Chat
+    CHAT_SEND: "CHAT_SEND",         // Client -> Server
+    CHAT_RECEIVE: "CHAT_RECEIVE",   // Server -> Client
+
+    // Reactions
+    EMOJI_REACTION: "EMOJI_REACTION", // Client -> Server -> Client (Broadcast)
 } as const;

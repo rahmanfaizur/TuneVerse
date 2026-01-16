@@ -4,11 +4,16 @@ import cors from "cors";
 import { Server } from "socket.io";
 import { setupSocket } from "./socket";
 import { RoomStore } from "./state/room-store";
+import authRoutes from "./routes/auth";
+import { authenticateToken, AuthRequest } from "./middleware/auth";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Auth Routes
+app.use("/api/auth", authRoutes);
 
 // API Routes
 app.get("/api/rooms", (req, res) => {
@@ -25,14 +30,33 @@ app.get("/api/rooms", (req, res) => {
     }
 });
 
-app.post("/api/rooms", (req, res) => {
+app.get("/api/rooms/my", authenticateToken, (req: AuthRequest, res) => {
     try {
-        const { name, username } = req.body;
+        if (!req.user) return res.sendStatus(401);
 
-        // Create a temporary user object for the host
+        // Filter rooms where the user is the host
+        const rooms = RoomStore.getAllRooms().filter(room => room.hostId === req.user!.id).map(room => ({
+            ...room,
+            host: room.users.find(u => u.id === room.hostId) || { username: "Unknown" },
+            participants: room.users
+        }));
+        res.json(rooms);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Failed to fetch my rooms" });
+    }
+});
+
+app.post("/api/rooms", authenticateToken, (req: AuthRequest, res) => {
+    try {
+        const { name } = req.body;
+
+        if (!req.user) return res.sendStatus(401);
+
+        // Create a user object for the host from the token
         const user = {
-            id: `user-${Date.now()}`, // Simple ID generation
-            username
+            id: req.user.id,
+            username: req.user.username
         };
 
         const room = RoomStore.createRoom(user);
@@ -40,7 +64,7 @@ app.post("/api/rooms", (req, res) => {
             room.name = name;
         }
 
-        // No DB sync needed
+        // No DB sync needed for now as per previous logic, but we might want to add it later
 
         res.json(room);
     } catch (e) {

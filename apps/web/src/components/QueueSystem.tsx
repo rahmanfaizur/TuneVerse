@@ -172,10 +172,24 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                     Remove
                                 </button>
                             )}
+
+                            {/* Upvote Button */}
+                            <div className="flex flex-col items-center">
+                                <button
+                                    onClick={() => {
+                                        if (!socket) return;
+                                        socket.emit(EVENTS.QUEUE_UPVOTE, { videoId: video.id });
+                                    }}
+                                    className={`text-xs hover:scale-110 transition ${video.voters?.includes(socket?.id || "") ? "text-blue-500" : "text-gray-400 dark:text-gray-600"}`}
+                                >
+                                    👍
+                                </button>
+                                <span className="text-[9px] font-mono text-gray-400">{video.votes || 0}</span>
+                            </div>
                         </div>
                     ))
                 )}
             </div>
-        </div>
+        </div >
     );
 }

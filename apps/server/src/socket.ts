@@ -34,7 +34,11 @@ export const setupSocket = (io: Server) => {
         socket.on(EVENTS.ROOM_CREATE, (payload: CreateRoomPayload & { isPersistent?: boolean }) => {
             const { username, isPersistent, roomName } = payload;
             // In a real app, userId comes from Auth, here we use socket.id for now
-            const user = { id: socket.id, username };
+            const user = {
+                id: socket.id,
+                username,
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`
+            };
 
             const newRoom = RoomStore.createRoom(user);
             if (roomName) {
@@ -60,7 +64,11 @@ export const setupSocket = (io: Server) => {
         // --- 2. JOIN ROOM ---
         socket.on(EVENTS.ROOM_JOIN, async (payload: JoinRoomPayload) => {
             const { roomId, username } = payload;
-            const user = { id: socket.id, username };
+            const user = {
+                id: socket.id,
+                username,
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`
+            };
 
             // Check DB for approval requirement (Simulated: All public for now, but we add logic)
             // In a real app, we'd check `room.isPublic`.
@@ -84,11 +92,43 @@ export const setupSocket = (io: Server) => {
             }
         });
 
-        // --- 2.5 JOIN DECISION (Host) ---
+        // --- 2.5 JOIN REQUESTS ---
+        socket.on(EVENTS.JOIN_REQUEST, (payload: JoinRoomPayload) => {
+            const { roomId, username } = payload;
+            const room = RoomStore.getRoom(roomId);
+
+            if (!room) {
+                socket.emit(EVENTS.ERROR, { message: "Room not found" });
+                return;
+            }
+
+            // Emit to HOST only
+            io.to(room.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                roomId,
+                username,
+                userId: socket.id, // The requester's socket ID
+            });
+            console.log(`📩 Join request from ${username} for room ${roomId}`);
+        });
+
         socket.on(EVENTS.JOIN_DECISION, (payload: { userId: string; roomId: string; approved: boolean }) => {
-            // TODO: Implement actual approval flow if we switch to private rooms.
-            // For now, we just log it as we are keeping it public for MVP speed.
-            console.log(`Decision for ${payload.userId} in ${payload.roomId}: ${payload.approved}`);
+            const { userId, roomId, approved } = payload;
+            const room = RoomStore.getRoom(roomId);
+
+            if (!room) return;
+            // Verify host
+            if (room.hostId !== socket.id) {
+                console.warn(`Unauthorized decision from ${socket.id} for room ${roomId}`);
+                return;
+            }
+
+            if (approved) {
+                io.to(userId).emit(EVENTS.JOIN_APPROVED, { roomId });
+                console.log(`✅ Approved ${userId} for room ${roomId}`);
+            } else {
+                io.to(userId).emit(EVENTS.JOIN_REJECTED, { roomId });
+                console.log(`❌ Rejected ${userId} for room ${roomId}`);
+            }
         });
 
         // --- 3. DISCONNECT / LEAVE ---
@@ -317,6 +357,48 @@ export const setupSocket = (io: Server) => {
             } catch (e) {
                 console.error("Search error", e);
             }
+        });
+
+        // --- 6. CHAT ---
+        socket.on(EVENTS.CHAT_SEND, (payload: { text: string }) => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return;
+
+            const message = {
+                id: Math.random().toString(36).substring(2, 9),
+                userId: socket.id,
+                username: activeUsers.get(socket.id) || "Anon", // Fallback, but should be set
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${activeUsers.get(socket.id) || "Anon"}`, // Fallback
+                text: payload.text,
+                timestamp: Date.now(),
+            };
+
+            // Use the username from the handshake/join if available, or just socket ID
+            // Ideally we should store user info in socketToRoom or similar, but for now:
+            // We can get the user from the room users list
+            const room = RoomStore.getRoom(roomId);
+            if (room) {
+                const user = room.users.find(u => u.id === socket.id);
+                if (user) {
+                    message.username = user.username;
+                    message.avatarUrl = user.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.username}`;
+                }
+            }
+
+            RoomStore.addMessage(roomId, message);
+            io.to(roomId).emit(EVENTS.CHAT_RECEIVE, message);
+        });
+
+        // --- 7. REACTIONS ---
+        socket.on(EVENTS.EMOJI_REACTION, (payload: { emoji: string }) => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return;
+
+            // Broadcast to everyone in the room (including sender, for simplicity)
+            io.to(roomId).emit(EVENTS.EMOJI_REACTION, {
+                emoji: payload.emoji,
+                userId: socket.id,
+            });
         });
     });
 };

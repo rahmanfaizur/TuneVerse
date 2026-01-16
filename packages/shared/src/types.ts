@@ -2,6 +2,7 @@
 export interface User {
     id: string;      // The socket.id (or custom ID from handshake)
     username: string; // "CoolGuy123"
+    avatarUrl?: string; // <--- NEW
     color?: string;   // UI avatar color
 }
 
@@ -32,6 +33,18 @@ export interface Room {
     users: User[];    // List of everyone in the room
     playback: PlaybackState; // <--- NEW
     queue: Video[]; // <--- NEW: List of upcoming songs
+    messages: Message[]; // <--- NEW: Chat history
+}
+
+// 5. Chat Message
+export interface Message {
+    id: string;
+    userId: string;
+    username: string;
+    avatarUrl?: string; // <--- NEW
+    text: string;
+    timestamp: number;
+    isSystem?: boolean;
 }
 
 // 3. Payload for Joining

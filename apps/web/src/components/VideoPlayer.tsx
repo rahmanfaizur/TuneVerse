@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState, useMemo } from "react";
 import ReactPlayer from "react-player/youtube";
 import { Room, EVENTS } from "@tuneverse/shared";
@@ -129,6 +131,37 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
         socket.emit(EVENTS.PLAYER_PREVIOUS);
     };
 
+    // 5. Reactions
+    const [reactions, setReactions] = useState<{ id: string; emoji: string; x: number }[]>([]);
+
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleReaction = (payload: { emoji: string; userId: string }) => {
+            const id = Math.random().toString(36).substring(2, 9);
+            // Random X position between 10% and 90%
+            const x = Math.floor(Math.random() * 80) + 10;
+
+            setReactions((prev) => [...prev, { id, emoji: payload.emoji, x }]);
+
+            // Remove after animation (2s)
+            setTimeout(() => {
+                setReactions((prev) => prev.filter((r) => r.id !== id));
+            }, 2000);
+        };
+
+        socket.on(EVENTS.EMOJI_REACTION, handleReaction);
+
+        return () => {
+            socket.off(EVENTS.EMOJI_REACTION, handleReaction);
+        };
+    }, [socket]);
+
+    const handleReaction = (emoji: string) => {
+        if (!socket) return;
+        socket.emit(EVENTS.EMOJI_REACTION, { emoji });
+    };
+
     return (
         <div className="w-full h-full bg-black relative flex flex-col group">
             <div className="flex-1 relative bg-black dark:bg-black flex items-center justify-center overflow-hidden">
@@ -175,39 +208,69 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                 )}
             </div>
 
+            {/* Reaction Overlay */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {reactions.map((r) => (
+                    <div
+                        key={r.id}
+                        className="absolute text-4xl animate-float-up"
+                        style={{ left: `${r.x}%`, bottom: "10%" }}
+                    >
+                        {r.emoji}
+                    </div>
+                ))}
+            </div>
+
             {/* Control Bar */}
-            <div className="bg-gray-900 border-t border-gray-700 p-3 flex items-center justify-between">
-                {room.hostId === socket?.id ? (
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={handlePrevious}
-                            className="text-gray-400 hover:text-white transition"
-                            title="Previous"
-                        >
-                            ⏮️
-                        </button>
+            <div className="bg-gray-900 border-t border-gray-700 p-3 flex items-center justify-between relative z-10">
+                {/* Left: Playback Controls */}
+                <div className="flex items-center gap-4">
+                    {room.hostId === socket?.id ? (
+                        <>
+                            <button
+                                onClick={handlePrevious}
+                                className="text-gray-400 hover:text-white transition"
+                                title="Previous"
+                            >
+                                ⏮️
+                            </button>
 
-                        <button
-                            onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
-                            className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition font-bold"
-                        >
-                            {room.playback.status === "PLAYING" ? "⏸" : "▶"}
-                        </button>
+                            <button
+                                onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
+                                className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition font-bold"
+                            >
+                                {room.playback.status === "PLAYING" ? "⏸" : "▶"}
+                            </button>
 
-                        <button
-                            onClick={handleSkip}
-                            className="text-gray-400 hover:text-white transition"
-                            title="Skip"
-                        >
-                            ⏭️
-                        </button>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2 text-gray-500 text-xs font-sans uppercase tracking-widest">
-                        <span>Synced with Host</span>
-                    </div>
-                )}
+                            <button
+                                onClick={handleSkip}
+                                className="text-gray-400 hover:text-white transition"
+                                title="Skip"
+                            >
+                                ⏭️
+                            </button>
+                        </>
+                    ) : (
+                        <div className="flex items-center gap-2 text-gray-500 text-xs font-sans uppercase tracking-widest">
+                            <span>Synced with Host</span>
+                        </div>
+                    )}
+                </div>
 
+                {/* Center: Reaction Bar */}
+                <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-2">
+                    {["🔥", "❤️", "😂", "😮", "🎉"].map((emoji) => (
+                        <button
+                            key={emoji}
+                            onClick={() => handleReaction(emoji)}
+                            className="text-xl hover:scale-125 transition-transform active:scale-90"
+                        >
+                            {emoji}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Right: Status */}
                 <div className="text-xs text-gray-500 font-mono">
                     {room.playback.status}
                 </div>

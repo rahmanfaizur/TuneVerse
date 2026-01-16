@@ -21,6 +21,7 @@ export const RoomStore = {
                 lastUpdated: Date.now(),
             },
             queue: [], // <--- Empty queue
+            messages: [], // <--- Empty chat
         };
 
         rooms.set(roomId, newRoom);
@@ -29,6 +30,22 @@ export const RoomStore = {
 
     getRoom: (roomId: string): Room | undefined => {
         return rooms.get(roomId);
+    },
+
+    // ... (joinRoom, leaveRoom, updatePlayback, addToQueue, etc.)
+
+    addMessage: (roomId: string, message: any): Room | undefined => {
+        const room = rooms.get(roomId);
+        if (!room) return undefined;
+
+        room.messages.push(message);
+
+        // Keep last 50 messages
+        if (room.messages.length > 50) {
+            room.messages.shift();
+        }
+
+        return room;
     },
 
     joinRoom: (roomId: string, user: User): Room | undefined => {
@@ -51,8 +68,14 @@ export const RoomStore = {
 
         // If room is empty, delete it
         if (room.users.length === 0) {
-            rooms.delete(roomId);
-            return undefined; // Room is gone
+            // Check persistence (runtime property we added in socket.ts)
+            // @ts-ignore
+            if (!room.isPersistent) {
+                rooms.delete(roomId);
+                return undefined; // Room is gone
+            }
+            // If persistent, we keep it!
+            return room;
         }
 
         // If Host left, assign new host (simple logic: next person in list)

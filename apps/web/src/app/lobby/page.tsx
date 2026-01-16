@@ -2,27 +2,27 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSocket } from "../../../context/SocketContext";
+import { useSocket } from "../../context/SocketContext";
+import { useAuth } from "../../context/AuthContext";
 import { EVENTS } from "@tuneverse/shared";
 import RoomList from "../../components/RoomList";
+import { toast } from "sonner";
+import LoadingScreen from "../../components/LoadingScreen";
 
 export default function LobbyPage() {
-    const { socket, isConnected, login } = useSocket();
+    const { socket, isConnected } = useSocket();
+    const { user, logout } = useAuth();
     const router = useRouter();
     const [roomName, setRoomName] = useState("");
-    const [isPersistent, setIsPersistent] = useState(false);
-    const [username, setUsername] = useState("");
     const [roomIdInput, setRoomIdInput] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
+    const [activeTab, setActiveTab] = useState<"all" | "my">("all");
 
     useEffect(() => {
-        const storedUser = localStorage.getItem("tuneverse_user");
-        if (!storedUser) {
+        if (!user) {
             router.push("/");
-            return;
         }
-        setUsername(storedUser);
-    }, [router]);
+    }, [user, router]);
 
     useEffect(() => {
         if (!socket) return;
@@ -54,13 +54,43 @@ export default function LobbyPage() {
     }, [socket, router]);
 
     const createRoom = () => {
-        if (!socket) return;
-        socket.emit(EVENTS.ROOM_CREATE, { name: roomName, isPersistent, host: username });
+        if (!socket || !user) return;
+        // Persistent by default if not a guest
+        const isPersistent = !user.isGuest;
+        socket.emit(EVENTS.ROOM_CREATE, { name: roomName, isPersistent, host: user.username });
     };
 
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleJoinApproved = ({ roomId }: { roomId: string }) => {
+            toast.success("Join request accepted! Entering room...");
+            if (user) {
+                socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username });
+            }
+        };
+
+        const handleJoinRejected = () => {
+            toast.error("Join request rejected by host.");
+        };
+
+        socket.on(EVENTS.JOIN_APPROVED, handleJoinApproved);
+        socket.on(EVENTS.JOIN_REJECTED, handleJoinRejected);
+
+        return () => {
+            socket.off(EVENTS.JOIN_APPROVED, handleJoinApproved);
+            socket.off(EVENTS.JOIN_REJECTED, handleJoinRejected);
+        };
+    }, [socket, user]);
+
+    if (!isConnected || !socket) {
+        return <LoadingScreen message="Connecting to server..." />;
+    }
+
     const joinRoom = () => {
-        if (!socket || !roomIdInput) return;
-        socket.emit(EVENTS.ROOM_JOIN, { roomId: roomIdInput, username });
+        if (!socket || !roomIdInput || !user) return;
+        socket.emit(EVENTS.JOIN_REQUEST, { roomId: roomIdInput, username: user.username });
+        toast.info("Request sent to host...");
     };
 
     return (
@@ -86,13 +116,9 @@ export default function LobbyPage() {
                 {/* Main Content */}
                 <div className="space-y-8">
                     <div className="text-center space-y-2">
-                        <p className="text-2xl font-serif italic">Welcome, {username}</p>
+                        <p className="text-2xl font-serif italic">Welcome, {user?.username}</p>
                         <button
-                            onClick={() => {
-                                login("");
-                                localStorage.removeItem("tuneverse_user");
-                                router.push("/");
-                            }}
+                            onClick={logout}
                             className="text-xs font-sans uppercase tracking-widest border-b border-black dark:border-white hover:opacity-50 transition"
                         >
                             Sign Out
@@ -110,18 +136,7 @@ export default function LobbyPage() {
                                 onChange={(e) => setRoomName(e.target.value)}
                             />
 
-                            <div className="flex items-center justify-center gap-3">
-                                <input
-                                    type="checkbox"
-                                    id="persistent"
-                                    checked={isPersistent}
-                                    onChange={(e) => setIsPersistent(e.target.checked)}
-                                    className="w-4 h-4 accent-black dark:accent-white cursor-pointer"
-                                />
-                                <label htmlFor="persistent" className="text-xs uppercase tracking-wider cursor-pointer select-none text-gray-600 dark:text-gray-400">
-                                    Persistent Room
-                                </label>
-                            </div>
+
 
                             <button
                                 onClick={createRoom}
@@ -142,7 +157,7 @@ export default function LobbyPage() {
                         </div>
 
                         {/* Join Room Section */}
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             <div className="flex gap-0 border border-black dark:border-white">
                                 <input
                                     type="text"
@@ -160,11 +175,37 @@ export default function LobbyPage() {
                                 </button>
                             </div>
 
+                            {/* Tabs */}
+                            <div className="flex border-b border-gray-200 dark:border-gray-800">
+                                <button
+                                    onClick={() => setActiveTab("all")}
+                                    className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "all"
+                                        ? "text-black dark:text-white border-b-2 border-black dark:border-white"
+                                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        }`}
+                                >
+                                    Online Rooms
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab("my")}
+                                    className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "my"
+                                        ? "text-black dark:text-white border-b-2 border-black dark:border-white"
+                                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        }`}
+                                >
+                                    My Rooms
+                                </button>
+                            </div>
+
                             <RoomList
                                 refreshKey={refreshKey}
+                                type={activeTab}
                                 onJoin={(id) => {
                                     setRoomIdInput(id);
-                                    if (socket) socket.emit(EVENTS.ROOM_JOIN, { roomId: id, username });
+                                    if (socket && user) {
+                                        socket.emit(EVENTS.JOIN_REQUEST, { roomId: id, username: user.username });
+                                        toast.info("Request sent to host...");
+                                    }
                                 }}
                             />
                         </div>

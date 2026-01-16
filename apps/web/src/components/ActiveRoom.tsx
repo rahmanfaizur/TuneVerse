@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSocket } from "../../context/SocketContext";
-import { EVENTS } from "@tuneverse/shared";
+import { useSocket } from "../context/SocketContext";
+import { EVENTS, User } from "@tuneverse/shared";
 import VideoPlayer from "./VideoPlayer";
 import QueueSystem from "./QueueSystem";
+import Chat from "./Chat";
 
 export default function ActiveRoom({ username }: { username: string }) {
     const { socket, room } = useSocket();
     const router = useRouter();
     const [pendingRequests, setPendingRequests] = useState<{ userId: string; username: string }[]>([]);
+    const [activeTab, setActiveTab] = useState<"chat" | "users">("chat");
 
     useEffect(() => {
         if (!socket) return;
@@ -116,26 +118,58 @@ export default function ActiveRoom({ username }: { username: string }) {
                         <QueueSystem room={room} socket={socket} />
                     </div>
 
-                    {/* 2. User List (Bottom) */}
-                    <div className="h-48 border-t border-black dark:border-white pt-4 flex flex-col">
-                        <h3 className="font-serif italic text-lg mb-2">In Attendance ({room.users.length})</h3>
-                        <div className="space-y-2 overflow-y-auto flex-1 pr-2">
-                            {room.users.map((u) => (
-                                <div key={u.id} className="flex items-center gap-3 py-1 group">
-                                    <div className="w-6 h-6 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-[10px] font-bold font-sans">
-                                        {(u.username?.[0] || "?").toUpperCase()}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-sans truncate group-hover:underline decoration-1 underline-offset-2">
-                                            {u.username}
-                                            {u.id === socket?.id && <span className="text-gray-400 ml-1 italic">(You)</span>}
-                                        </p>
-                                    </div>
-                                    {room.hostId === u.id && (
-                                        <span className="text-[9px] uppercase tracking-widest border border-black dark:border-white px-1">HOST</span>
-                                    )}
+                    {/* 2. Social Section (Chat & Users) */}
+                    <div className="h-[400px] border border-black dark:border-white flex flex-col">
+                        {/* Tabs */}
+                        <div className="flex border-b border-black dark:border-white">
+                            <button
+                                onClick={() => setActiveTab("chat")}
+                                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "chat"
+                                    ? "bg-black text-white dark:bg-white dark:text-black"
+                                    : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    }`}
+                            >
+                                Live Chat
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("users")}
+                                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "users"
+                                    ? "bg-black text-white dark:bg-white dark:text-black"
+                                    : "text-gray-500 hover:text-black dark:hover:text-white"
+                                    }`}
+                            >
+                                Users ({room.users.length})
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-hidden relative">
+                            {activeTab === "chat" ? (
+                                <Chat
+                                    roomId={room.id}
+                                    username={username}
+                                    initialMessages={room.messages || []}
+                                />
+                            ) : (
+                                <div className="p-4 h-full overflow-y-auto space-y-2">
+                                    {room.users.map((u: User) => (
+                                        <div key={u.id} className="flex items-center gap-3 py-1 group">
+                                            <div className="w-6 h-6 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-[10px] font-bold font-sans">
+                                                {(u.username?.[0] || "?").toUpperCase()}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-sans truncate group-hover:underline decoration-1 underline-offset-2">
+                                                    {u.username}
+                                                    {u.id === socket?.id && <span className="text-gray-400 ml-1 italic">(You)</span>}
+                                                </p>
+                                            </div>
+                                            {room.hostId === u.id && (
+                                                <span className="text-[9px] uppercase tracking-widest border border-black dark:border-white px-1">HOST</span>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 </div>

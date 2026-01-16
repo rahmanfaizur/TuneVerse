@@ -7,14 +7,18 @@ interface Room {
     users: { id: string; username: string }[];
 }
 
+import { useAuth } from "../context/AuthContext";
+
 interface RoomListProps {
     onJoin: (roomId: string) => void;
     refreshKey?: number;
+    type?: "all" | "my";
 }
 
-export default function RoomList({ onJoin, refreshKey }: RoomListProps) {
+export default function RoomList({ onJoin, refreshKey, type = "all" }: RoomListProps) {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
+    const { token } = useAuth();
 
     const fetchRooms = () => {
         setLoading(true);
@@ -23,8 +27,17 @@ export default function RoomList({ onJoin, refreshKey }: RoomListProps) {
         const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || `${protocol}//${host}:4000`;
 
-        fetch(`${apiUrl}/api/rooms`)
-            .then((res) => res.json())
+        const endpoint = type === "my" ? "/api/rooms/my" : "/api/rooms";
+
+        fetch(`${apiUrl}${endpoint}`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error("Failed to fetch");
+                return res.json();
+            })
             .then((data) => {
                 setRooms(data);
                 setLoading(false);
@@ -36,8 +49,10 @@ export default function RoomList({ onJoin, refreshKey }: RoomListProps) {
     };
 
     useEffect(() => {
-        fetchRooms();
-    }, [refreshKey]);
+        if (token) {
+            fetchRooms();
+        }
+    }, [refreshKey, type, token]);
 
     if (loading) return <div className="text-gray-400 text-xs text-center font-sans tracking-widest uppercase">Loading rooms...</div>;
 
