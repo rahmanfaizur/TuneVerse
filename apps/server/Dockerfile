@@ -25,7 +25,7 @@ RUN pnpm install
 
 # Build the project and its dependencies
 COPY --from=builder /app/out/full/ .
-COPY turbo.json turbo.json
+COPY --from=builder /app/turbo.json ./turbo.json
 
 # Build the server
 RUN pnpm turbo run build --filter=@tuneverse/server...
