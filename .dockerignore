@@ -1,0 +1,10 @@
+node_modules
+.git
+.next
+dist
+.turbo
+.vercel
+coverage
+*.log
+.env
+.env.*
