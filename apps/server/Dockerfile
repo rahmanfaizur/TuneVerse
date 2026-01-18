@@ -7,7 +7,9 @@ WORKDIR /app
 # Install turbo (pin version to match local)
 RUN npm install -g turbo@2.7.3
 COPY . .
-COPY pnpm-workspace.yaml pnpm-workspace.yaml
+RUN ls -la
+RUN ls -la packages || echo "packages not found"
+
 
 # Prune the workspace for the server app
 RUN turbo prune --scope=@tuneverse/server --docker
