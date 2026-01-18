@@ -4,9 +4,15 @@ FROM base AS builder
 RUN apk add --no-cache libc6-compat
 # Set working directory
 WORKDIR /app
-# Install turbo
-RUN npm install -g turbo
+# Install turbo (pin version to match local)
+RUN npm install -g turbo@2.7.3
 COPY . .
+
+# DEBUG: Check if files exist
+RUN ls -la
+RUN cat package.json
+RUN cat pnpm-workspace.yaml
+
 # Prune the workspace for the server app
 RUN turbo prune --scope=@tuneverse/server --docker
 
