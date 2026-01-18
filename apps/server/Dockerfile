@@ -43,4 +43,4 @@ USER expressjs
 
 COPY --from=installer /app .
 
-CMD ["node", "apps/server/dist/index.js"]
+CMD ["node", "apps/server/dist/apps/server/src/index.js"]
