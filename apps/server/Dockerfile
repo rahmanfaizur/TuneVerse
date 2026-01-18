@@ -10,7 +10,7 @@ COPY . .
 COPY pnpm-workspace.yaml pnpm-workspace.yaml
 
 
-# Prune the workspace for the server app
+# Prune the workspace for the server app!
 RUN turbo prune --scope=@tuneverse/server --docker
 
 # Add lockfile and package.json's of isolated subworkspace
