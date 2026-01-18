@@ -7,8 +7,7 @@ WORKDIR /app
 # Install turbo (pin version to match local)
 RUN npm install -g turbo@2.7.3
 COPY . .
-RUN ls -la
-RUN ls -la packages || echo "packages not found"
+COPY pnpm-workspace.yaml pnpm-workspace.yaml
 
 
 # Prune the workspace for the server app
