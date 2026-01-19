@@ -88,9 +88,8 @@ export default function LobbyPage() {
     }
 
     const joinRoom = () => {
-        if (!socket || !roomIdInput || !user) return;
-        socket.emit(EVENTS.JOIN_REQUEST, { roomId: roomIdInput, username: user.username });
-        toast.info("Request sent to host...");
+        if (!roomIdInput) return;
+        router.push(`/room/${roomIdInput}`);
     };
 
     return (
@@ -201,11 +200,7 @@ export default function LobbyPage() {
                                 refreshKey={refreshKey}
                                 type={activeTab}
                                 onJoin={(id) => {
-                                    setRoomIdInput(id);
-                                    if (socket && user) {
-                                        socket.emit(EVENTS.JOIN_REQUEST, { roomId: id, username: user.username });
-                                        toast.info("Request sent to host...");
-                                    }
+                                    router.push(`/room/${id}`);
                                 }}
                             />
                         </div>

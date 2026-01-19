@@ -66,8 +66,15 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         // Auto-login check
         const storedUser = localStorage.getItem("tuneverse_user");
         if (storedUser) {
-            socketInstance.auth = { username: storedUser };
-            socketInstance.connect();
+            try {
+                const parsedUser = JSON.parse(storedUser);
+                if (parsedUser && parsedUser.username) {
+                    socketInstance.auth = { username: parsedUser.username };
+                    socketInstance.connect();
+                }
+            } catch (e) {
+                console.error("Socket auto-login failed", e);
+            }
         }
 
         return () => {
@@ -77,14 +84,14 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = (username: string) => {
         if (!socket) return;
-        localStorage.setItem("tuneverse_user", username);
+        // localStorage.setItem("tuneverse_user", username); // REMOVED: AuthContext manages this
         socket.auth = { username };
         socket.connect();
     };
 
     const logout = () => {
         if (!socket) return;
-        localStorage.removeItem("tuneverse_user");
+        // localStorage.removeItem("tuneverse_user"); // REMOVED: AuthContext manages this
         socket.disconnect();
         setRoom(null);
     };

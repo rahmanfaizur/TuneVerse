@@ -2,6 +2,7 @@ import { Room, User, Video } from "@tuneverse/shared";
 
 // The "Database"
 const rooms = new Map<string, Room>();
+const cleanupTimeouts = new Map<string, NodeJS.Timeout>(); // <--- Store timeouts
 
 // Helper to generate short IDs (e.g., "AF3D")
 const generateRoomId = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -22,6 +23,7 @@ export const RoomStore = {
             },
             queue: [], // <--- Empty queue
             messages: [], // <--- Empty chat
+            allowedUsers: [hostUser.username], // <--- Host is always allowed
         };
 
         rooms.set(roomId, newRoom);
@@ -52,6 +54,13 @@ export const RoomStore = {
         const room = rooms.get(roomId);
         if (!room) return undefined;
 
+        // Cancel pending cleanup if any
+        if (cleanupTimeouts.has(roomId)) {
+            clearTimeout(cleanupTimeouts.get(roomId));
+            cleanupTimeouts.delete(roomId);
+            console.log(`♻️ Room ${roomId} cleanup cancelled (user joined)`);
+        }
+
         // Prevent duplicates
         if (!room.users.find((u) => u.id === user.id)) {
             room.users.push(user);
@@ -71,18 +80,50 @@ export const RoomStore = {
             // Check persistence (runtime property we added in socket.ts)
             // @ts-ignore
             if (!room.isPersistent) {
-                rooms.delete(roomId);
-                return undefined; // Room is gone
+                // Schedule cleanup instead of deleting immediately
+                console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 30s.`);
+                const timeout = setTimeout(() => {
+                    rooms.delete(roomId);
+                    cleanupTimeouts.delete(roomId);
+                    console.log(`🗑️ Room ${roomId} deleted after grace period.`);
+                }, 30000); // 30 seconds grace period
+
+                cleanupTimeouts.set(roomId, timeout);
+                return undefined; // Room is effectively "gone" for this user, but exists for re-join
             }
             // If persistent, we keep it!
             return room;
         }
 
-        // If Host left, assign new host (simple logic: next person in list)
-        if (room.hostId === userId) {
+        // NOTE: We do NOT reassign host here anymore. 
+        // Host reassignment is handled by explicit call or timeout in socket.ts
+
+        return room;
+    },
+
+    reassignHost: (roomId: string): Room | undefined => {
+        const room = rooms.get(roomId);
+        if (!room) return undefined;
+
+        // If host is still in the room (e.g. they reconnected), don't change
+        if (room.users.find(u => u.id === room.hostId)) return room;
+
+        // Assign new host (next person in list)
+        if (room.users.length > 0) {
             room.hostId = room.users[0].id;
+            console.log(`👑 New Host for ${roomId}: ${room.hostId}`);
         }
 
+        return room;
+    },
+
+    addAllowedUser: (roomId: string, username: string): Room | undefined => {
+        const room = rooms.get(roomId);
+        if (!room) return undefined;
+
+        if (!room.allowedUsers.includes(username)) {
+            room.allowedUsers.push(username);
+        }
         return room;
     },
 

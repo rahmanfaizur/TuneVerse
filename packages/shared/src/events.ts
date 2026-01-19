@@ -33,6 +33,7 @@ export const EVENTS = {
     JOIN_DECISION: "JOIN_DECISION",         // Host -> Server (Approve/Reject)
     JOIN_APPROVED: "JOIN_APPROVED",         // Server -> Client (Success)
     JOIN_REJECTED: "JOIN_REJECTED",         // Server -> Client (Failure)
+    JOIN_PENDING: "JOIN_PENDING",           // Server -> Client (Waiting for approval)
 
     // Sync Events
     SYNC_CLOCK: "SYNC_CLOCK",

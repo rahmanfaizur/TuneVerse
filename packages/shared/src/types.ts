@@ -34,6 +34,7 @@ export interface Room {
     playback: PlaybackState; // <--- NEW
     queue: Video[]; // <--- NEW: List of upcoming songs
     messages: Message[]; // <--- NEW: Chat history
+    allowedUsers: string[]; // <--- NEW: List of usernames allowed to join without approval
 }
 
 // 5. Chat Message

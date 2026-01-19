@@ -12,24 +12,80 @@ import LoadingScreen from "../../../components/LoadingScreen";
 export default function RoomPage() {
     const { roomId } = useParams();
     const { socket, room, isConnected, error } = useSocket(); // <--- Get error
-    const { user } = useAuth();
+    const { user, isLoading } = useAuth();
     const router = useRouter();
+    const [joinRequests, setJoinRequests] = useState<{ userId: string; username: string }[]>([]);
+    const [isPending, setIsPending] = useState(false);
     // Removed manual user fetching, using useAuth now
 
     useEffect(() => {
+        if (!user && !isLoading) {
+            const callbackUrl = `/room/${roomId}`;
+            router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+            return;
+        }
+
         if (!socket || !isConnected || !user || !roomId) return;
 
         // If we are not in the room yet (e.g. refresh), join it
         if (!room || room.id !== roomId) {
             console.log(`🔄 Auto-joining room ${roomId} as ${user.username}`);
-            // Note: For auto-join on refresh, we might need to bypass approval if already approved?
-            // For now, let's assume refresh requires re-join or we handle session persistence better later.
-            // Actually, if we are host, we should just join.
-            // If we are guest, we might need to re-request?
-            // Let's stick to ROOM_JOIN for now for refresh logic, assuming server handles it.
             socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username });
         }
-    }, [socket, isConnected, user, roomId, room]);
+    }, [socket, isConnected, user, roomId, room, isLoading, router]);
+
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleRequest = (payload: { roomId: string; username: string; userId: string }) => {
+            console.log("📩 Join Request Received:", payload);
+            toast.info(`${payload.username} wants to join!`);
+            setJoinRequests((prev) => [...prev, payload]);
+        };
+
+        const handlePending = () => {
+            setIsPending(true);
+        };
+
+        const handleApproved = () => {
+            setIsPending(false);
+            toast.success("Access granted!");
+        };
+
+        const handleRejected = () => {
+            setIsPending(false);
+            toast.error("Access denied by host");
+            router.push("/");
+        };
+
+        socket.on(EVENTS.JOIN_REQUEST_RECEIVED, handleRequest);
+        socket.on(EVENTS.JOIN_PENDING, handlePending);
+        socket.on(EVENTS.JOIN_APPROVED, handleApproved);
+        socket.on(EVENTS.JOIN_REJECTED, handleRejected);
+
+        return () => {
+            socket.off(EVENTS.JOIN_REQUEST_RECEIVED, handleRequest);
+            socket.off(EVENTS.JOIN_PENDING, handlePending);
+            socket.off(EVENTS.JOIN_APPROVED, handleApproved);
+            socket.off(EVENTS.JOIN_REJECTED, handleRejected);
+        };
+    }, [socket, router]);
+
+    const handleDecision = (userId: string, approved: boolean) => {
+        if (!socket || !roomId) return;
+        socket.emit(EVENTS.JOIN_DECISION, { roomId, userId, approved });
+        setJoinRequests((prev) => prev.filter((req) => req.userId !== userId));
+        if (approved) toast.success("Request accepted");
+        else toast.info("Request rejected");
+    };
+
+    // Debug Logs
+    console.log("DEBUG RENDER:", {
+        joinRequestsLen: joinRequests.length,
+        hostId: room?.hostId,
+        socketId: socket?.id,
+        isHost: room?.hostId === socket?.id
+    });
 
     if (error) {
         return (
@@ -53,34 +109,29 @@ export default function RoomPage() {
         );
     }
 
-    if (!room) {
+    if (!room && !isPending) {
         return <LoadingScreen message="Entering Session..." />;
     }
 
-    const [joinRequests, setJoinRequests] = useState<{ userId: string; username: string }[]>([]);
+    if (isPending) {
+        return (
+            <main className="min-h-screen bg-white dark:bg-black flex items-center justify-center text-black dark:text-white p-4 transition-colors duration-300">
+                <div className="text-center max-w-md space-y-6 animate-pulse">
+                    <div className="text-4xl mb-4 font-serif italic">Waiting...</div>
+                    <div className="space-y-2">
+                        <h2 className="text-xl font-serif uppercase tracking-tight">Host Approval Required</h2>
+                        <p className="text-gray-500 dark:text-gray-400 font-sans text-sm tracking-wide">
+                            Please wait while the host reviews your request to join.
+                        </p>
+                    </div>
+                </div>
+            </main>
+        );
+    }
 
-    useEffect(() => {
-        if (!socket) return;
 
-        const handleRequest = (payload: { roomId: string; username: string; userId: string }) => {
-            toast.info(`${payload.username} wants to join!`);
-            setJoinRequests((prev) => [...prev, payload]);
-        };
 
-        socket.on(EVENTS.JOIN_REQUEST_RECEIVED, handleRequest);
 
-        return () => {
-            socket.off(EVENTS.JOIN_REQUEST_RECEIVED, handleRequest);
-        };
-    }, [socket]);
-
-    const handleDecision = (userId: string, approved: boolean) => {
-        if (!socket || !roomId) return;
-        socket.emit(EVENTS.JOIN_DECISION, { roomId, userId, approved });
-        setJoinRequests((prev) => prev.filter((req) => req.userId !== userId));
-        if (approved) toast.success("Request accepted");
-        else toast.info("Request rejected");
-    };
 
     // ... existing useEffects ...
 

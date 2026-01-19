@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import LoadingScreen from "../../components/LoadingScreen";
 import { useAuth } from "../../context/AuthContext";
+import { useSocket } from "../../context/SocketContext";
 
-export default function LoginPage() {
+function LoginForm() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [guestName, setGuestName] = useState(""); // New state for guest name
     const [error, setError] = useState("");
     const { login } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get("callbackUrl") || "/lobby";
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -34,6 +38,29 @@ export default function LoginPage() {
             }
 
             login(data.token, data.user);
+            router.push(callbackUrl); // Redirect to callbackUrl
+        } catch (err: any) {
+            setError(err.message);
+            setIsLoading(false);
+        }
+    };
+
+    const { login: socketLogin } = useSocket(); // Get socket login function
+
+    const handleGuestLogin = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/guest`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: guestName }), // Send guestName
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Guest login failed");
+
+            login(data.token, data.user);
+            socketLogin(data.user.username); // <--- Connect socket immediately
+            router.push(callbackUrl); // Redirect to callbackUrl
         } catch (err: any) {
             setError(err.message);
             setIsLoading(false);
@@ -119,38 +146,46 @@ export default function LoginPage() {
 
                         <div className="space-y-4">
                             <Link
-                                href="/signup"
+                                href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                                 className="block w-full py-3 border border-black dark:border-white text-black dark:text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
                             >
                                 Create an Account
                             </Link>
 
-                            <button
-                                onClick={async () => {
-                                    setIsLoading(true);
-                                    try {
-                                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/guest`, {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({}),
-                                        });
-                                        const data = await res.json();
-                                        if (!res.ok) throw new Error(data.error || "Guest login failed");
-                                        login(data.token, data.user);
-                                    } catch (err: any) {
-                                        setError(err.message);
-                                        setIsLoading(false);
-                                    }
-                                }}
-                                className="block w-full text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                            >
-                                Join as Guest
-                            </button>
+                            {/* Guest Login Section */}
+                            <div className="pt-4 space-y-4">
+                                <div className="group text-left">
+                                    <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2 group-focus-within:text-black dark:group-focus-within:text-white transition-colors">
+                                        Guest Username (Optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={guestName}
+                                        onChange={(e) => setGuestName(e.target.value)}
+                                        className="w-full py-2 border-b border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none font-serif text-xl transition-colors bg-transparent text-black dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        placeholder="Guest"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleGuestLogin}
+                                    className="block w-full text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                >
+                                    Join as Guest
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<LoadingScreen message="Loading..." />}>
+            <LoginForm />
+        </Suspense>
     );
 }

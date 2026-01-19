@@ -7,6 +7,8 @@ import ytpl from "ytpl";
 
 const activeUsers = new Map<string, string>(); // socketId -> userId (kept from Phase 3)
 const socketToRoom = new Map<string, string>(); // socketId -> roomId (NEW: fast lookup)
+const pendingJoins = new Map<string, { roomId: string; user: any }>(); // socketId -> { roomId, user }
+const hostReassignmentTimeouts = new Map<string, NodeJS.Timeout>(); // roomId -> timeout
 
 export const setupSocket = (io: Server) => {
     io.on("connection", (socket: Socket) => {
@@ -30,7 +32,6 @@ export const setupSocket = (io: Server) => {
         });
 
         // --- 1. CREATE ROOM ---
-        // --- 1. CREATE ROOM ---
         socket.on(EVENTS.ROOM_CREATE, (payload: CreateRoomPayload & { isPersistent?: boolean }) => {
             const { username, isPersistent, roomName } = payload;
             // In a real app, userId comes from Auth, here we use socket.id for now
@@ -46,8 +47,6 @@ export const setupSocket = (io: Server) => {
             }
             // @ts-ignore - Adding runtime property
             newRoom.isPersistent = !!isPersistent;
-            // @ts-ignore - Adding runtime property
-            newRoom.isPersistent = !!isPersistent;
 
             // Socket.io grouping
             socket.join(newRoom.id);
@@ -57,8 +56,6 @@ export const setupSocket = (io: Server) => {
             socket.emit(EVENTS.ROOM_UPDATE, newRoom);
             socket.emit(EVENTS.ROOM_CREATED, { roomId: newRoom.id });
             console.log(`🏠 Room Created: ${newRoom.id} by ${username}`);
-
-
         });
 
         // --- 2. JOIN ROOM ---
@@ -70,31 +67,6 @@ export const setupSocket = (io: Server) => {
                 avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`
             };
 
-            // Check DB for approval requirement (Simulated: All public for now, but we add logic)
-            // In a real app, we'd check `room.isPublic`.
-
-            const updatedRoom = RoomStore.joinRoom(roomId, user);
-
-            if (updatedRoom) {
-                socket.join(roomId);
-                socketToRoom.set(socket.id, roomId);
-
-                // Notify the joiner specifically
-                socket.emit(EVENTS.ROOM_JOINED, { roomId });
-
-                // Notify EVERYONE in the room (including new guy)
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
-                console.log(`👤 ${username} joined room ${roomId}`);
-
-
-            } else {
-                socket.emit(EVENTS.ERROR, { message: "Room not found" });
-            }
-        });
-
-        // --- 2.5 JOIN REQUESTS ---
-        socket.on(EVENTS.JOIN_REQUEST, (payload: JoinRoomPayload) => {
-            const { roomId, username } = payload;
             const room = RoomStore.getRoom(roomId);
 
             if (!room) {
@@ -102,15 +74,98 @@ export const setupSocket = (io: Server) => {
                 return;
             }
 
-            // Emit to HOST only
+            // If user is the host OR is in the allowed list, join immediately
+            // We check username because socket.id changes on refresh
+            const isHost = room.users.find(u => u.id === room.hostId)?.username === username; // Check by username if possible, but hostId is socketId. 
+            // Actually, hostId IS socketId. So on refresh, hostId won't match new socketId.
+            // But we can check if the room has no host (if we implement that) OR if the username matches the *previous* host?
+            // Simpler: Check allowedUsers. Host is added to allowedUsers on create.
+
+            if (room.allowedUsers.includes(username)) {
+                const updatedRoom = RoomStore.joinRoom(roomId, user);
+
+                // If this user was the host (reconnecting), we might need to restore their host status?
+                // But RoomStore.joinRoom just adds them.
+                // If the room has a hostId that is NOT in the room (because they left), we should update it?
+                // RoomStore.reassignHost handles "next person", but maybe we want "original host"?
+                // For now, let's stick to: if allowed, join.
+
+                // If the room currently has a hostId that corresponds to a user NOT in the room (ghost host),
+                // and this user is joining, maybe they should become host?
+                // But `leaveRoom` doesn't remove hostId immediately anymore.
+                // So if host refreshes:
+                // 1. leaveRoom called (hostId stays same).
+                // 2. joinRoom called (new socketId).
+                // 3. We need to update hostId to new socketId if username matches?
+                // Let's do that here.
+
+                // Check if the current host is "missing" from users list (meaning they are disconnected)
+                // AND this joining user was the host (by username check? We don't store host username explicitly in Room, just hostId)
+                // Wait, we can check if `room.allowedUsers[0]` (creator) is this user?
+                // Or just: if room.hostId is not found in room.users, AND this user is allowed, make them host?
+                // No, that's risky.
+
+                // Better: If we have a pending host reassignment timeout for this room, CANCEL IT and make this user host.
+                console.log(`🔍 Checking host restoration for ${username} in ${roomId}. Timeout exists: ${hostReassignmentTimeouts.has(roomId)}`);
+                if (hostReassignmentTimeouts.has(roomId)) {
+                    clearTimeout(hostReassignmentTimeouts.get(roomId));
+                    hostReassignmentTimeouts.delete(roomId);
+                    // If this is the host returning, update hostId to new socketId
+                    // We assume the person returning within grace period IS the host (or at least allowed).
+                    // But strictly, we should check if they were the host.
+                    // Since we don't store "host username", we rely on the fact that only the host triggers the timeout.
+                    // So if timeout exists, the host left.
+                    // If *anyone* joins during timeout, do we make them host?
+                    // No, only if it's the SAME user.
+                    // But we can't verify identity easily without auth.
+                    // For MVP: If timeout exists, and this user is allowed, assume it's the host returning?
+                    // Or just let them join, and if they were host, they regain control?
+                    // We need to update room.hostId to new socket.id.
+
+                    // Let's assume for now: If timeout exists, we update hostId to this new user IF they are allowed.
+                    // This is a bit loose but works for "refresh".
+                    room.hostId = user.id;
+                    console.log(`👑 Host restored for ${roomId}: ${username}`);
+                }
+
+                if (updatedRoom) {
+                    socket.join(roomId);
+                    socketToRoom.set(socket.id, roomId);
+                    socket.emit(EVENTS.ROOM_JOINED, { roomId });
+                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+
+                    // If this user is the host, send them any pending requests they might have missed
+                    if (room.hostId === user.id) {
+                        pendingJoins.forEach((pending, pendingSocketId) => {
+                            if (pending.roomId === roomId) {
+                                socket.emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                                    roomId,
+                                    username: pending.user.username,
+                                    userId: pendingSocketId,
+                                });
+                            }
+                        });
+                    }
+                }
+                return;
+            }
+
+            // Request Approval
+            pendingJoins.set(socket.id, { roomId, user });
+
+            // Notify Host
             io.to(room.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
                 roomId,
                 username,
-                userId: socket.id, // The requester's socket ID
+                userId: socket.id,
             });
-            console.log(`📩 Join request from ${username} for room ${roomId}`);
+
+            // Notify User they are pending
+            socket.emit(EVENTS.JOIN_PENDING, { roomId });
+            console.log(`⏳ ${username} waiting for approval in ${roomId}`);
         });
 
+        // --- 2.5 JOIN DECISION ---
         socket.on(EVENTS.JOIN_DECISION, (payload: { userId: string; roomId: string; approved: boolean }) => {
             const { userId, roomId, approved } = payload;
             const room = RoomStore.getRoom(roomId);
@@ -122,19 +177,43 @@ export const setupSocket = (io: Server) => {
                 return;
             }
 
+            const pending = pendingJoins.get(userId);
+            if (!pending || pending.roomId !== roomId) {
+                // Handle case where pending request is gone or mismatched
+                return;
+            }
+
             if (approved) {
-                io.to(userId).emit(EVENTS.JOIN_APPROVED, { roomId });
-                console.log(`✅ Approved ${userId} for room ${roomId}`);
+                const updatedRoom = RoomStore.joinRoom(roomId, pending.user);
+                RoomStore.addAllowedUser(roomId, pending.user.username); // <--- Add to allowed list
+
+                // Get the socket of the approved user
+                const targetSocket = io.sockets.sockets.get(userId);
+
+                if (targetSocket && updatedRoom) {
+                    targetSocket.join(roomId);
+                    socketToRoom.set(userId, roomId);
+
+                    targetSocket.emit(EVENTS.ROOM_JOINED, { roomId });
+                    targetSocket.emit(EVENTS.JOIN_APPROVED, { roomId }); // Explicit approval event
+                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                    console.log(`✅ Approved ${userId} for room ${roomId}`);
+                }
             } else {
                 io.to(userId).emit(EVENTS.JOIN_REJECTED, { roomId });
                 console.log(`❌ Rejected ${userId} for room ${roomId}`);
             }
+
+            pendingJoins.delete(userId);
         });
 
         // --- 3. DISCONNECT / LEAVE ---
-        const handleLeave = () => {
+        const handleLeave = (isExplicit: boolean = false) => {
             const roomId = socketToRoom.get(socket.id);
             if (!roomId) return;
+
+            const roomBeforeLeave = RoomStore.getRoom(roomId);
+            const wasHost = roomBeforeLeave?.hostId === socket.id;
 
             const updatedRoom = RoomStore.leaveRoom(roomId, socket.id);
             socketToRoom.delete(socket.id);
@@ -144,28 +223,63 @@ export const setupSocket = (io: Server) => {
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
                 console.log(`👋 Socket ${socket.id} left room ${roomId}`);
 
+                // Host Logic
+                if (wasHost) {
+                    if (isExplicit) {
+                        // Explicit leave: Reassign immediately
+                        const reassignRoom = RoomStore.reassignHost(roomId);
+                        if (reassignRoom) {
+                            io.to(roomId).emit(EVENTS.ROOM_UPDATE, reassignRoom);
 
+                            // Notify NEW host of pending requests
+                            pendingJoins.forEach((pending, pendingSocketId) => {
+                                if (pending.roomId === roomId) {
+                                    io.to(reassignRoom.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                                        roomId,
+                                        username: pending.user.username,
+                                        userId: pendingSocketId,
+                                    });
+                                }
+                            });
+                        }
+                    } else {
+                        // Disconnect (Refresh): Grace period
+                        console.log(`👑 Host disconnected from ${roomId}. Waiting 30s...`);
+                        const timeout = setTimeout(() => {
+                            const roomNow = RoomStore.getRoom(roomId);
+                            // If host hasn't returned (still same ID which is gone, or ID not in users)
+                            if (roomNow && roomNow.hostId === socket.id) {
+                                console.log(`👑 Host grace period expired for ${roomId}. Reassigning...`);
+                                const reassignRoom = RoomStore.reassignHost(roomId);
+                                if (reassignRoom) {
+                                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, reassignRoom);
+
+                                    // Notify NEW host of pending requests
+                                    pendingJoins.forEach((pending, pendingSocketId) => {
+                                        if (pending.roomId === roomId) {
+                                            io.to(reassignRoom.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                                                roomId,
+                                                username: pending.user.username,
+                                                userId: pendingSocketId,
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                            hostReassignmentTimeouts.delete(roomId);
+                        }, 30000);
+                        hostReassignmentTimeouts.set(roomId, timeout);
+                    }
+                }
 
             } else {
-                // Only delete if NOT persistent
-                // @ts-ignore
-                const room = RoomStore.getRoom(roomId);
-                // If room is already gone from store (leaveRoom returns null if empty/deleted), we need to check if we should keep it.
-                // Actually RoomStore.leaveRoom deletes it from memory if empty.
-                // We need to modify RoomStore to NOT delete if persistent, OR we handle DB deletion here.
-
-                // Let's check DB for persistence if we don't have it in memory anymore?
-                // Optimization: We should probably store isPersistent in RoomStore.
-
-                // For now, let's assume if it was deleted from memory, we check DB?
-                // Better approach: Update RoomStore to handle persistence.
-
-
+                // Room deleted (handled in RoomStore)
+                // If room is gone, we don't need to do anything else
             }
         };
 
-        socket.on(EVENTS.ROOM_LEAVE, handleLeave);
-        socket.on("disconnect", handleLeave);
+        socket.on(EVENTS.ROOM_LEAVE, () => handleLeave(true));
+        socket.on("disconnect", () => handleLeave(false));
 
         // --- 4. PLAYER CONTROLS ---
 

@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import LoadingScreen from "../../components/LoadingScreen";
 import { useAuth } from "../../context/AuthContext";
 
-export default function SignupPage() {
+function SignupForm() {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const { login } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const callbackUrl = searchParams.get("callbackUrl") || "/lobby";
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -35,6 +37,7 @@ export default function SignupPage() {
             }
 
             login(data.token, data.user);
+            router.push(callbackUrl); // Redirect to callbackUrl
         } catch (err: any) {
             setError(err.message);
             setIsLoading(false);
@@ -133,7 +136,7 @@ export default function SignupPage() {
 
                         <div className="space-y-4">
                             <Link
-                                href="/login"
+                                href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
                                 className="block w-full py-3 border border-black dark:border-white text-black dark:text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
                             >
                                 Sign In
@@ -151,6 +154,7 @@ export default function SignupPage() {
                                         const data = await res.json();
                                         if (!res.ok) throw new Error(data.error || "Guest login failed");
                                         login(data.token, data.user);
+                                        router.push(callbackUrl); // Redirect to callbackUrl
                                     } catch (err: any) {
                                         setError(err.message);
                                         setIsLoading(false);
@@ -166,5 +170,13 @@ export default function SignupPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function SignupPage() {
+    return (
+        <Suspense fallback={<LoadingScreen message="Loading..." />}>
+            <SignupForm />
+        </Suspense>
     );
 }

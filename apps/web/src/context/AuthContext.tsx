@@ -32,8 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storedUser = localStorage.getItem("tuneverse_user");
 
         if (storedToken && storedUser) {
-            setToken(storedToken);
-            setUser(JSON.parse(storedUser));
+            try {
+                const parsedUser = JSON.parse(storedUser);
+                setToken(storedToken);
+                setUser(parsedUser);
+            } catch (e) {
+                console.error("Failed to parse user data", e);
+                // Clear invalid data
+                localStorage.removeItem("tuneverse_user");
+                localStorage.removeItem("tuneverse_token");
+            }
         }
         setIsLoading(false);
     }, []);
@@ -43,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("tuneverse_user", JSON.stringify(newUser));
         setToken(newToken);
         setUser(newUser);
-        router.push("/lobby");
+        // router.push("/lobby"); // Removed to allow custom redirects
     };
 
     const logout = () => {
