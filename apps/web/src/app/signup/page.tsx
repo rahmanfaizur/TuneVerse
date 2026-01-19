@@ -22,7 +22,7 @@ export default function SignupPage() {
         setIsLoading(true);
 
         try {
-            const res = await fetch("http://localhost:4000/api/auth/signup", {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username, email, password }),
@@ -143,7 +143,7 @@ export default function SignupPage() {
                                 onClick={async () => {
                                     setIsLoading(true);
                                     try {
-                                        const res = await fetch("http://localhost:4000/api/auth/guest", {
+                                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/guest`, {
                                             method: "POST",
                                             headers: { "Content-Type": "application/json" },
                                             body: JSON.stringify({}),
