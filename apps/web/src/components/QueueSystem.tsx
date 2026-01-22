@@ -33,6 +33,9 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
+    const [recommendations, setRecommendations] = useState<SearchResult[]>([]);
+    const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+    const [showRecs, setShowRecs] = useState(false);
     const debouncedQuery = useDebounce(query, 500);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -70,9 +73,17 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
             setIsSearching(false);
         };
 
+        const handleRecommendations = (data: SearchResult[]) => {
+            setRecommendations(data);
+            setIsLoadingRecs(false);
+            setShowRecs(true);
+        };
+
         socket.on(EVENTS.SEARCH_RESULTS, handleResults);
+        socket.on(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
         return () => {
             socket.off(EVENTS.SEARCH_RESULTS, handleResults);
+            socket.off(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
         };
     }, [socket]);
 
@@ -89,9 +100,72 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         socket.emit(EVENTS.QUEUE_REMOVE, { roomId: room.id, index });
     };
 
+    const handleGetRecommendations = () => {
+        if (!socket || isLoadingRecs) return;
+        setIsLoadingRecs(true);
+        setShowRecs(false);
+        socket.emit(EVENTS.RECOMMENDATIONS_REQUEST);
+    };
+
     return (
         <div className="flex flex-col h-full relative" ref={wrapperRef}>
-            <h3 className="font-serif italic text-lg mb-4 text-black dark:text-white">Queue</h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-serif italic text-lg text-black dark:text-white">Queue</h3>
+                <button
+                    onClick={handleGetRecommendations}
+                    disabled={isLoadingRecs}
+                    className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isLoadingRecs ? "Analyzing..." : "🤖 Discover"}
+                </button>
+            </div>
+
+            {/* AI Recommendations Panel */}
+            {showRecs && recommendations.length > 0 && (
+                <div className="mb-4 border border-black dark:border-white p-3 bg-gray-50 dark:bg-gray-900/50">
+                    <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-400">
+                            🎵 AI Recommended ({recommendations.length})
+                        </p>
+                        <button
+                            onClick={() => setShowRecs(false)}
+                            className="text-[9px] uppercase tracking-widest text-gray-500 hover:text-black dark:hover:text-white"
+                        >
+                            Close
+                        </button>
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {recommendations.map((video) => (
+                            <button
+                                key={video.id}
+                                onClick={() => {
+                                    handleAdd(video);
+                                    // Remove from recommendations after adding
+                                    setRecommendations(prev => prev.filter(v => v.id !== video.id));
+                                }}
+                                className="w-full text-left p-2 hover:bg-white dark:hover:bg-gray-800 flex gap-2 items-center group transition-colors border-b border-gray-200 dark:border-gray-700 last:border-0"
+                            >
+                                <img
+                                    src={video.thumbnail}
+                                    alt={video.title}
+                                    className="w-12 h-7 object-cover grayscale group-hover:grayscale-0 transition-all"
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-serif text-xs truncate text-black dark:text-white">
+                                        {video.title}
+                                    </p>
+                                    <p className="text-[8px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                        {video.channelTitle}
+                                    </p>
+                                </div>
+                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
+                                    +
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Search Input */}
             <div className="relative mb-6 z-20">

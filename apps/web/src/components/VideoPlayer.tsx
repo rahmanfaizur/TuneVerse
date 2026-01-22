@@ -133,6 +133,7 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
     // 5. Reactions
     const [reactions, setReactions] = useState<{ id: string; emoji: string; x: number }[]>([]);
+    const [showMobileReactions, setShowMobileReactions] = useState(false); // Mobile toggle
 
     useEffect(() => {
         if (!socket) return;
@@ -166,16 +167,16 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
         <div className="w-full h-full bg-black relative flex flex-col group">
             <div className="flex-1 relative bg-black dark:bg-black flex items-center justify-center overflow-hidden">
                 {!room.playback.videoId ? (
-                    <div className="text-center space-y-6 p-8 animate-in fade-in duration-700">
-                        <div className="w-24 h-24 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                    <div className="text-center space-y-4 p-6 animate-in fade-in duration-700 max-w-sm border border-white/10 bg-white/5 rounded-2xl backdrop-blur-sm">
+                        <div className="w-16 h-16 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                         </div>
-                        <div className="space-y-2">
-                            <h3 className="text-3xl md:text-4xl font-serif italic text-white tracking-wide">
+                        <div className="space-y-1">
+                            <h3 className="text-xl md:text-2xl font-serif italic text-white tracking-wide">
                                 No Media Playing
                             </h3>
-                            <p className="text-[10px] font-sans uppercase tracking-[0.3em] text-gray-500">
-                                Add a track to the queue to start
+                            <p className="text-[10px] font-sans uppercase tracking-[0.2em] text-gray-400">
+                                Add a track to start
                             </p>
                         </div>
                     </div>
@@ -222,43 +223,47 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
             </div>
 
             {/* Control Bar */}
-            <div className="bg-gray-900 border-t border-gray-700 p-3 flex items-center justify-between relative z-10">
+            <div className="bg-gray-900 border-t border-gray-700 p-2 md:p-3 flex items-center justify-between relative z-10 h-12 md:h-16">
                 {/* Left: Playback Controls */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 md:gap-6">
                     {room.hostId === socket?.id ? (
                         <>
                             <button
                                 onClick={handlePrevious}
-                                className="text-gray-400 hover:text-white transition"
+                                className="text-gray-400 hover:text-white transition hover:scale-110 active:scale-95"
                                 title="Previous"
                             >
-                                ⏮️
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
                             </button>
 
                             <button
                                 onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
-                                className="bg-white text-black rounded-full w-10 h-10 flex items-center justify-center hover:scale-105 transition font-bold"
+                                className="bg-white text-black rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg shadow-white/10"
                             >
-                                {room.playback.status === "PLAYING" ? "⏸" : "▶"}
+                                {room.playback.status === "PLAYING" ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" className="ml-1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                )}
                             </button>
 
                             <button
                                 onClick={handleSkip}
-                                className="text-gray-400 hover:text-white transition"
+                                className="text-gray-400 hover:text-white transition hover:scale-110 active:scale-95"
                                 title="Skip"
                             >
-                                ⏭️
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
                             </button>
                         </>
                     ) : (
-                        <div className="flex items-center gap-2 text-gray-500 text-xs font-sans uppercase tracking-widest">
-                            <span>Synced with Host</span>
+                        <div className="flex items-center gap-2 text-gray-500 text-[10px] md:text-xs font-sans uppercase tracking-widest">
+                            <span>Synced</span>
                         </div>
                     )}
                 </div>
 
-                {/* Center: Reaction Bar */}
-                <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-2">
+                {/* Center: Reaction Bar (Desktop) */}
+                <div className="hidden md:flex absolute left-1/2 transform -translate-x-1/2 gap-2">
                     {["🔥", "❤️", "😂", "😮", "🎉"].map((emoji) => (
                         <button
                             key={emoji}
@@ -270,8 +275,34 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                     ))}
                 </div>
 
+                {/* Mobile Reaction Button & Menu */}
+                <div className="md:hidden relative">
+                    {showMobileReactions && (
+                        <div className="absolute bottom-full right-0 mb-2 bg-gray-800 border border-gray-700 rounded-lg p-2 flex flex-col gap-2 shadow-xl animate-in fade-in slide-in-from-bottom-2">
+                            {["🔥", "❤️", "😂", "😮", "🎉"].map((emoji) => (
+                                <button
+                                    key={emoji}
+                                    onClick={() => {
+                                        handleReaction(emoji);
+                                        setShowMobileReactions(false);
+                                    }}
+                                    className="text-2xl hover:scale-125 transition-transform active:scale-90 p-1"
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    <button
+                        onClick={() => setShowMobileReactions(!showMobileReactions)}
+                        className="text-xl p-2 text-gray-400 hover:text-white transition"
+                    >
+                        😊
+                    </button>
+                </div>
+
                 {/* Right: Status */}
-                <div className="text-xs text-gray-500 font-mono">
+                <div className="text-[10px] md:text-xs text-gray-500 font-mono hidden sm:block">
                     {room.playback.status}
                 </div>
             </div>

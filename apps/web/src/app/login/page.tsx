@@ -83,7 +83,7 @@ function LoginForm() {
             </div>
 
             {/* Right: Minimalist Form */}
-            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 lg:p-24">
+            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-12 lg:p-24">
                 <div className="w-full max-w-md space-y-12">
 
                     <div className="text-center space-y-4">

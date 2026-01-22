@@ -455,12 +455,33 @@ export const setupSocket = (io: Server) => {
                 return;
             }
 
-            // Normal Search
+            // Normal Search - Filter for music videos only
             try {
-                // Simplify: Just search directly
-                const results = await ytsr(payload.query, { limit: 5 });
+                // Append "music video" or "official audio" to queries for better music results
+                const musicQuery = payload.query.toLowerCase().includes('music video') ||
+                    payload.query.toLowerCase().includes('official') ||
+                    payload.query.toLowerCase().includes('audio')
+                    ? payload.query
+                    : `${payload.query} music video`;
+
+                const results = await ytsr(musicQuery, { limit: 10 }); // Increased limit to filter better
                 const videos = results.items
-                    .filter((i: any) => i.type === 'video')
+                    .filter((i: any) => {
+                        if (i.type !== 'video') return false;
+                        // Additional filtering: prefer music-related content
+                        const title = i.title?.toLowerCase() || '';
+                        const channel = i.author?.name?.toLowerCase() || '';
+                        const isMusicRelated =
+                            title.includes('music') ||
+                            title.includes('official') ||
+                            title.includes('audio') ||
+                            title.includes('video') ||
+                            channel.includes('vevo') ||
+                            channel.includes('official') ||
+                            channel.includes('music');
+                        return isMusicRelated;
+                    })
+                    .slice(0, 5) // Limit to top 5 after filtering
                     .map((i: any) => ({
                         id: i.id,
                         title: i.title,
@@ -470,6 +491,79 @@ export const setupSocket = (io: Server) => {
                 socket.emit(EVENTS.SEARCH_RESULTS, videos);
             } catch (e) {
                 console.error("Search error", e);
+            }
+        });
+
+        // --- AI-POWERED RECOMMENDATIONS ---
+        socket.on(EVENTS.RECOMMENDATIONS_REQUEST, async () => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return;
+
+            const room = RoomStore.getRoom(roomId);
+            if (!room) return;
+
+            try {
+                // Analyze current queue and playing track to generate recommendations
+                const queue = room.queue || [];
+                const currentVideoId = room.playback?.videoId;
+
+                // Collect track info for analysis
+                const tracks = [...queue];
+                if (currentVideoId && room.playback) {
+                    // Add current playing track if it exists
+                    const currentTrack = queue.find(t => t.id === currentVideoId);
+                    if (currentTrack) tracks.unshift(currentTrack);
+                }
+
+                // Extract artists/keywords from queue titles
+                const keywords = new Set<string>();
+                tracks.forEach(track => {
+                    const title = track.title.toLowerCase();
+                    // Remove common words and extract meaningful terms
+                    const words = title
+                        .replace(/\(.*?\)/g, '') // Remove parentheses content
+                        .replace(/\[.*?\]/g, '') // Remove brackets content
+                        .replace(/official|video|audio|music|lyric|mv/g, '') // Remove common terms
+                        .split(/[\s\-\,\/]+/)
+                        .filter(w => w.length > 3); // Keep meaningful words
+                    words.forEach(w => keywords.add(w));
+                });
+
+                // Use top keywords to search for similar music
+                const topKeywords = Array.from(keywords).slice(0, 3).join(' ');
+                const recommendationQuery = topKeywords
+                    ? `${topKeywords} music video`
+                    : 'trending music video'; // Fallback if queue is empty
+
+                const results = await ytsr(recommendationQuery, { limit: 15 });
+                const recommendations = results.items
+                    .filter((i: any) => {
+                        if (i.type !== 'video') return false;
+                        // Filter out videos already in queue
+                        const alreadyInQueue = queue.some(q => q.id === i.id);
+                        if (alreadyInQueue) return false;
+
+                        // Prefer music content
+                        const title = i.title?.toLowerCase() || '';
+                        const channel = i.author?.name?.toLowerCase() || '';
+                        return title.includes('music') ||
+                            title.includes('official') ||
+                            channel.includes('vevo') ||
+                            channel.includes('music');
+                    })
+                    .slice(0, 8) // Return top 8 recommendations
+                    .map((i: any) => ({
+                        id: i.id,
+                        title: i.title,
+                        thumbnail: i.bestThumbnail.url,
+                        channelTitle: i.author?.name,
+                    }));
+
+                socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, recommendations);
+                console.log(`🤖 Generated ${recommendations.length} recommendations for ${roomId}`);
+            } catch (e) {
+                console.error("Recommendations error", e);
+                socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, []);
             }
         });
 

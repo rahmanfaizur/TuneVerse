@@ -96,15 +96,15 @@ export default function LobbyPage() {
         <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8 bg-white dark:bg-black text-black dark:text-white selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300">
             <div className="max-w-2xl w-full space-y-12">
                 {/* Header */}
-                <div className="text-center space-y-4">
-                    <h1 className="text-6xl md:text-8xl font-serif tracking-tighter uppercase">
+                <div className="text-left md:text-center space-y-4">
+                    <h1 className="text-4xl md:text-6xl lg:text-8xl font-serif tracking-tighter uppercase">
                         Tuneverse
                     </h1>
-                    <div className="flex items-center justify-center gap-4 text-xs font-sans tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col sm:flex-row items-start md:items-center justify-start md:justify-center gap-2 sm:gap-4 text-xs font-sans tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400">
                         <span>Est. 2024</span>
-                        <span className="w-1 h-1 bg-black dark:bg-white rounded-full" />
+                        <span className="hidden sm:block w-1 h-1 bg-black dark:bg-white rounded-full" />
                         <span>Sync Your Vibe</span>
-                        <span className="w-1 h-1 bg-black dark:bg-white rounded-full" />
+                        <span className="hidden sm:block w-1 h-1 bg-black dark:bg-white rounded-full" />
                         <div className="flex items-center gap-1">
                             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-600' : 'bg-red-500'}`} />
                             {isConnected ? "Online" : "Offline"}

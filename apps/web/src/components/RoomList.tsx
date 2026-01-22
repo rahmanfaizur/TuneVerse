@@ -76,10 +76,10 @@ export default function RoomList({ onJoin, refreshKey, type = "all" }: RoomListP
                         return (
                             <div
                                 key={room.id}
-                                className="py-4 flex items-center justify-between group"
+                                className="py-4 flex flex-col sm:flex-row sm:items-center justify-between group gap-4 sm:gap-0"
                             >
                                 <div>
-                                    <p className="text-black dark:text-white font-serif text-lg leading-none group-hover:italic transition-all">
+                                    <p className="text-black dark:text-white font-serif text-lg leading-tight group-hover:italic transition-all break-words">
                                         {room.name || `Session ${room.id}`}
                                     </p>
                                     <p className="text-gray-400 text-[10px] uppercase tracking-widest mt-1">
@@ -88,7 +88,7 @@ export default function RoomList({ onJoin, refreshKey, type = "all" }: RoomListP
                                 </div>
                                 <button
                                     onClick={() => onJoin(room.id)}
-                                    className="text-xs font-sans font-bold uppercase tracking-widest border border-black dark:border-white px-4 py-2 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition text-black dark:text-white"
+                                    className="text-xs font-sans font-bold uppercase tracking-widest border border-black dark:border-white px-4 py-2 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition text-black dark:text-white w-full sm:w-auto text-center"
                                 >
                                     Join
                                 </button>

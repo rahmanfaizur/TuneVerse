@@ -25,6 +25,8 @@ export const EVENTS = {
 
     SEARCH_QUERY: "SEARCH_QUERY",     // <--- NEW
     SEARCH_RESULTS: "SEARCH_RESULTS", // <--- NEW
+    RECOMMENDATIONS_REQUEST: "RECOMMENDATIONS_REQUEST", // <--- AI-powered recommendations
+    RECOMMENDATIONS_RESULTS: "RECOMMENDATIONS_RESULTS", // <--- AI recommendations response
     PLAYER_ENDED: "PLAYER_ENDED", // Client -> Server (Host only usually)
 
     // Join Approval

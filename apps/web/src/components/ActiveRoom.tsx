@@ -10,7 +10,7 @@ export default function ActiveRoom({ username }: { username: string }) {
     const { socket, room } = useSocket();
     const router = useRouter();
     const [pendingRequests, setPendingRequests] = useState<{ userId: string; username: string }[]>([]);
-    const [activeTab, setActiveTab] = useState<"chat" | "users">("chat");
+    const [activeTab, setActiveTab] = useState<"queue" | "chat" | "users">("queue");
 
     useEffect(() => {
         if (!socket) return;
@@ -43,7 +43,7 @@ export default function ActiveRoom({ username }: { username: string }) {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-end border-b border-black dark:border-white pb-6 gap-6 md:gap-0">
                 <div className="space-y-2">
-                    <h2 className="text-5xl md:text-6xl font-serif tracking-tighter uppercase leading-none">
+                    <h2 className="text-3xl md:text-5xl lg:text-6xl font-serif tracking-tighter uppercase leading-none">
                         {room.name || <span className="italic">Session {room.id}</span>}
                     </h2>
                     <div className="flex items-center gap-4 text-[10px] font-sans uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
@@ -103,74 +103,83 @@ export default function ActiveRoom({ username }: { username: string }) {
             )}
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 flex-1">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8 flex-1">
 
                 {/* LEFT: Video Player */}
                 <div className="lg:col-span-3 aspect-video bg-black border border-black dark:border-white relative">
                     <VideoPlayer room={room} socket={socket} />
                 </div>
 
-                {/* RIGHT: Queue & User List */}
-                <div className="flex flex-col gap-8 h-full">
+                {/* RIGHT: Unified Sidebar (Queue, Chat, Users) */}
+                <div className="flex flex-col h-auto lg:h-full border border-black dark:border-white bg-white dark:bg-black">
 
-                    {/* 1. Queue System (Top) */}
-                    <div className="flex-1 min-h-[300px] border border-black dark:border-white p-4">
-                        <QueueSystem room={room} socket={socket} />
+                    {/* Tabs */}
+                    <div className="flex border-b border-black dark:border-white">
+                        <button
+                            onClick={() => setActiveTab("queue")}
+                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "queue"
+                                ? "bg-black text-white dark:bg-white dark:text-black"
+                                : "text-gray-500 hover:text-black dark:hover:text-white"
+                                }`}
+                        >
+                            Queue
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("chat")}
+                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors border-x border-black dark:border-white ${activeTab === "chat"
+                                ? "bg-black text-white dark:bg-white dark:text-black"
+                                : "text-gray-500 hover:text-black dark:hover:text-white"
+                                }`}
+                        >
+                            Chat
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("users")}
+                            className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "users"
+                                ? "bg-black text-white dark:bg-white dark:text-black"
+                                : "text-gray-500 hover:text-black dark:hover:text-white"
+                                }`}
+                        >
+                            Users ({room.users.length})
+                        </button>
                     </div>
 
-                    {/* 2. Social Section (Chat & Users) */}
-                    <div className="h-[400px] border border-black dark:border-white flex flex-col">
-                        {/* Tabs */}
-                        <div className="flex border-b border-black dark:border-white">
-                            <button
-                                onClick={() => setActiveTab("chat")}
-                                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "chat"
-                                    ? "bg-black text-white dark:bg-white dark:text-black"
-                                    : "text-gray-500 hover:text-black dark:hover:text-white"
-                                    }`}
-                            >
-                                Live Chat
-                            </button>
-                            <button
-                                onClick={() => setActiveTab("users")}
-                                className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeTab === "users"
-                                    ? "bg-black text-white dark:bg-white dark:text-black"
-                                    : "text-gray-500 hover:text-black dark:hover:text-white"
-                                    }`}
-                            >
-                                Users ({room.users.length})
-                            </button>
-                        </div>
+                    {/* Content Area */}
+                    <div className="flex-1 overflow-hidden relative bg-white dark:bg-black min-h-[300px] lg:min-h-0">
+                        {activeTab === "queue" && (
+                            <div className="h-full p-4">
+                                <QueueSystem room={room} socket={socket} />
+                            </div>
+                        )}
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-hidden relative">
-                            {activeTab === "chat" ? (
-                                <Chat
-                                    roomId={room.id}
-                                    username={username}
-                                    initialMessages={room.messages || []}
-                                />
-                            ) : (
-                                <div className="p-4 h-full overflow-y-auto space-y-2">
-                                    {room.users.map((u: User) => (
-                                        <div key={u.id} className="flex items-center gap-3 py-1 group">
-                                            <div className="w-6 h-6 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-[10px] font-bold font-sans">
-                                                {(u.username?.[0] || "?").toUpperCase()}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-sans truncate group-hover:underline decoration-1 underline-offset-2">
-                                                    {u.username}
-                                                    {u.id === socket?.id && <span className="text-gray-400 ml-1 italic">(You)</span>}
-                                                </p>
-                                            </div>
-                                            {room.hostId === u.id && (
-                                                <span className="text-[9px] uppercase tracking-widest border border-black dark:border-white px-1">HOST</span>
-                                            )}
+                        {activeTab === "chat" && (
+                            <Chat
+                                roomId={room.id}
+                                username={username}
+                                initialMessages={room.messages || []}
+                            />
+                        )}
+
+                        {activeTab === "users" && (
+                            <div className="p-4 h-full overflow-y-auto space-y-2">
+                                {room.users.map((u: User) => (
+                                    <div key={u.id} className="flex items-center gap-3 py-1 group">
+                                        <div className="w-6 h-6 rounded-full bg-black dark:bg-white text-white dark:text-black flex items-center justify-center text-[10px] font-bold font-sans">
+                                            {(u.username?.[0] || "?").toUpperCase()}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-sans truncate group-hover:underline decoration-1 underline-offset-2">
+                                                {u.username}
+                                                {u.id === socket?.id && <span className="text-gray-400 ml-1 italic">(You)</span>}
+                                            </p>
+                                        </div>
+                                        {room.hostId === u.id && (
+                                            <span className="text-[9px] uppercase tracking-widest border border-black dark:border-white px-1">HOST</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
