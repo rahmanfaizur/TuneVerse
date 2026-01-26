@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSocket } from "../../context/SocketContext";
 import { useAuth } from "../../context/AuthContext";
 import { EVENTS } from "@tuneverse/shared";
@@ -18,11 +18,37 @@ export default function LobbyPage() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [activeTab, setActiveTab] = useState<"all" | "my">("all");
 
+    const searchParams = useSearchParams();
+    const { login: authLogin } = useAuth();
+    const { login: socketLogin } = useSocket();
+
+    // 1. Handle Spotify Callback (Run once on mount if params exist)
     useEffect(() => {
-        if (!user) {
+        const accessToken = searchParams.get("access_token");
+        const userParam = searchParams.get("user");
+
+        if (accessToken && userParam) {
+            try {
+                const parsedUser = JSON.parse(userParam);
+                authLogin(accessToken, parsedUser);
+                socketLogin(parsedUser.username);
+
+                // Clean URL
+                router.replace("/lobby");
+            } catch (e) {
+                console.error("Failed to parse spotify callback", e);
+                toast.error("Failed to complete Spotify login");
+            }
+        }
+    }, [searchParams, authLogin, socketLogin, router]);
+
+    // 2. Auth Guard (Redirect if not logged in and not processing callback)
+    useEffect(() => {
+        const accessToken = searchParams.get("access_token");
+        if (!user && !accessToken) {
             router.push("/");
         }
-    }, [user, router]);
+    }, [user, router, searchParams]);
 
     useEffect(() => {
         if (!socket) return;
@@ -82,6 +108,44 @@ export default function LobbyPage() {
             socket.off(EVENTS.JOIN_REJECTED, handleJoinRejected);
         };
     }, [socket, user]);
+
+    // 3. Ensure Socket Connection
+    useEffect(() => {
+        if (!user) return;
+
+        if (!isConnected) {
+            console.log("🔌 Auth exists, checking connection...");
+            // If socket exists but not connected, try to connect
+            if (socket && !socket.connected) {
+                console.log("🔌 Socket disconnected, attempting reconnect...");
+                socketLogin(user.username);
+            } else if (!socket) {
+                // Should be handled by context, but just in case
+                console.log("🔌 Socket missing, attempting login...");
+                socketLogin(user.username);
+            }
+        }
+    }, [user, isConnected, socket, socketLogin]);
+
+    const { error } = useSocket(); // Get error from context
+
+    if (error) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black text-black dark:text-white p-4">
+                <div className="text-center space-y-4 max-w-md">
+                    <div className="text-red-500 text-4xl mb-2">⚠️</div>
+                    <h2 className="text-xl font-serif font-bold">Connection Error</h2>
+                    <p className="text-sm font-mono text-gray-500">{error}</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="px-6 py-2 bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:opacity-80 transition"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     if (!isConnected || !socket) {
         return <LoadingScreen message="Connecting to server..." />;

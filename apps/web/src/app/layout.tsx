@@ -1,6 +1,7 @@
 import "./globals.css";
 import { SocketProvider } from "../context/SocketContext";
 import { AuthProvider } from "../context/AuthContext";
+import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
 import { Playfair_Display, Inter } from "next/font/google";
 
@@ -33,10 +34,12 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <SocketProvider>
-              {children}
-              <Toaster position="top-center" richColors />
-            </SocketProvider>
+            <SpotifyProvider>
+              <SocketProvider>
+                {children}
+                <Toaster position="top-center" richColors />
+              </SocketProvider>
+            </SpotifyProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

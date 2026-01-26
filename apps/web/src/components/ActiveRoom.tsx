@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSocket } from "../context/SocketContext";
+import { useSpotify } from "../context/SpotifyContext";
 import { EVENTS, User } from "@tuneverse/shared";
 import VideoPlayer from "./VideoPlayer";
 import QueueSystem from "./QueueSystem";
@@ -8,6 +9,7 @@ import Chat from "./Chat";
 
 export default function ActiveRoom({ username }: { username: string }) {
     const { socket, room } = useSocket();
+    const { isConnected: spotifyConnected, connectSpotify, disconnectSpotify } = useSpotify();
     const router = useRouter();
     const [pendingRequests, setPendingRequests] = useState<{ userId: string; username: string }[]>([]);
     const [activeTab, setActiveTab] = useState<"queue" | "chat" | "users">("queue");
@@ -56,6 +58,21 @@ export default function ActiveRoom({ username }: { username: string }) {
                     </div>
                 </div>
                 <div className="flex gap-4 w-full md:w-auto justify-start md:justify-end">
+                    {!spotifyConnected ? (
+                        <button
+                            onClick={connectSpotify}
+                            className="text-[10px] font-sans font-bold uppercase tracking-widest border-b border-green-500 text-green-500 pb-1 hover:opacity-50 transition"
+                        >
+                            ⚡ Connect Spotify
+                        </button>
+                    ) : (
+                        <button
+                            onClick={disconnectSpotify}
+                            className="text-[10px] font-sans font-bold uppercase tracking-widest border-b border-red-500 text-red-500 pb-1 hover:opacity-50 transition"
+                        >
+                            ✕ Disconnect Spotify
+                        </button>
+                    )}
                     <button
                         onClick={() => {
                             navigator.clipboard.writeText(window.location.href);

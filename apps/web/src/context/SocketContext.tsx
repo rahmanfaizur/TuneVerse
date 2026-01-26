@@ -63,6 +63,12 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             setError(payload.message);
         });
 
+        socketInstance.on("connect_error", (err) => {
+            console.error("🚨 Connection Error:", err.message);
+            setError(`Connection failed: ${err.message}`);
+            setIsConnected(false);
+        });
+
         // Auto-login check
         const storedUser = localStorage.getItem("tuneverse_user");
         if (storedUser) {

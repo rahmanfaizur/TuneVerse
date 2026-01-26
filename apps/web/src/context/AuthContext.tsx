@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import LoadingScreen from "../components/LoadingScreen";
 
@@ -46,28 +46,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
     }, []);
 
-    const login = (newToken: string, newUser: User) => {
+    const login = useCallback((newToken: string, newUser: User) => {
         localStorage.setItem("tuneverse_token", newToken);
         localStorage.setItem("tuneverse_user", JSON.stringify(newUser));
         setToken(newToken);
         setUser(newUser);
-        // router.push("/lobby"); // Removed to allow custom redirects
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         localStorage.removeItem("tuneverse_token");
         localStorage.removeItem("tuneverse_user");
         setToken(null);
         setUser(null);
         router.push("/login");
-    };
+    }, [router]);
+
+    const value = useMemo(() => ({
+        user,
+        token,
+        login,
+        logout,
+        isLoading
+    }), [user, token, login, logout, isLoading]);
 
     if (isLoading) {
         return <LoadingScreen message="Authenticating..." />;
     }
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+        <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );

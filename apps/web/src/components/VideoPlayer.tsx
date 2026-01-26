@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import ReactPlayer from "react-player/youtube";
+import SpotifyPlayer from "./SpotifyPlayer";
 import { Room, EVENTS } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 import { SyncEngine } from "../lib/sync-engine";
@@ -181,31 +182,38 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                         </div>
                     </div>
                 ) : (
-                    <ReactPlayer
-                        ref={playerRef}
-                        url={`https://www.youtube.com/watch?v=${room.playback.videoId}`}
-                        width="100%"
-                        height="100%"
-                        playing={room.playback.status === "PLAYING"}
-                        controls={true}
-                        config={{
-                            playerVars: {
-                                origin: typeof window !== "undefined" ? window.location.origin : undefined,
-                                playsinline: 1,
-                            },
-                        }}
+                    <>
+                        <div className={room.playbackSource === 'spotify' ? 'w-full h-full' : 'hidden'}>
+                            <SpotifyPlayer room={room} />
+                        </div>
+                        <div className={room.playbackSource === 'youtube' ? 'w-full h-full' : 'hidden'}>
+                            <ReactPlayer
+                                ref={playerRef}
+                                url={`https://www.youtube.com/watch?v=${room.playback.videoId}`}
+                                width="100%"
+                                height="100%"
+                                playing={room.playback.status === "PLAYING" && room.playbackSource === 'youtube'}
+                                controls={true}
+                                config={{
+                                    playerVars: {
+                                        origin: typeof window !== "undefined" ? window.location.origin : undefined,
+                                        playsinline: 1,
+                                    },
+                                }}
 
-                        onReady={() => setIsReady(true)}
+                                onReady={() => setIsReady(true)}
 
-                        // Check drift every 500ms (more frequent for adaptive)
-                        onProgress={checkDrift}
-                        progressInterval={500}
+                                // Check drift every 500ms (more frequent for adaptive)
+                                onProgress={checkDrift}
+                                progressInterval={500}
 
-                        onPlay={handlePlay}
-                        onPause={handlePause}
-                        onSeek={handleSeek}
-                        onEnded={handleEnded}
-                    />
+                                onPlay={handlePlay}
+                                onPause={handlePause}
+                                onSeek={handleSeek}
+                                onEnded={handleEnded}
+                            />
+                        </div>
+                    </>
                 )}
             </div>
 

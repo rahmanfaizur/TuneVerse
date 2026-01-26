@@ -8,12 +8,16 @@ export interface User {
 
 // 1. Define a Video Item
 export interface Video {
-    id: string;       // "dQw4w9WgXcQ"
+    id: string;       // "dQw4w9WgXcQ" (YouTube) or Spotify track ID
     title: string;    // "Rick Astley - Never Gonna Give You Up"
     thumbnail: string;
     addedBy: string;  // username
     votes: number;    // <--- NEW
     voters: string[]; // <--- NEW: List of user IDs who voted
+    source?: 'youtube' | 'spotify'; // <--- NEW: Track source
+    uri?: string;     // <--- NEW: Spotify URI (spotify:track:...)
+    artist?: string;  // <--- NEW: For Spotify tracks
+    album?: string;   // <--- NEW: For Spotify tracks
 }
 
 // 2. The Room State
@@ -21,9 +25,17 @@ export type PlaybackStatus = "PLAYING" | "PAUSED" | "IDLE";
 
 export interface PlaybackState {
     status: PlaybackStatus;
-    videoId: string | null;  // e.g., "dQw4w9WgXcQ"
+    videoId: string | null;  // e.g., "dQw4w9WgXcQ" or Spotify track ID
     timestamp: number;       // Current seek time in seconds
     lastUpdated: number;     // Server time (Date.now()) when status changed
+    source?: 'youtube' | 'spotify'; // <--- NEW: Current playback source
+    meta?: {
+        title: string;
+        artist?: string;
+        album?: string;
+        artwork?: string;
+        uri?: string;
+    };
 }
 
 export interface Room {
@@ -32,9 +44,11 @@ export interface Room {
     hostId: string;   // The user who controls playback
     users: User[];    // List of everyone in the room
     playback: PlaybackState; // <--- NEW
-    queue: Video[]; // <--- NEW: List of upcoming songs
+    queue: Video[]; // <--- NEW: List of upcoming songs (mixed sources)
     messages: Message[]; // <--- NEW: Chat history
     allowedUsers: string[]; // <--- NEW: List of usernames allowed to join without approval
+    playbackSource: 'youtube' | 'spotify'; // <--- NEW: Default playback source for room
+    spotifyUsers: Record<string, { accessToken: string; expiresAt: number }>; // <--- NEW: Track Spotify auth per user
 }
 
 // 5. Chat Message
@@ -64,6 +78,11 @@ export interface CreateRoomPayload {
 export interface AddToQueuePayload {
     videoId: string;
     title?: string;
+    thumbnail?: string;
+    source?: 'youtube' | 'spotify';
+    uri?: string;
+    artist?: string;
+    album?: string;
 }
 
 // 4. Search Types

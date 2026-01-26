@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tuneverse/shared";
 import { RoomStore } from "./state/room-store";
+import { RecommendationService } from "./services/recommendation";
 import ytsr from "ytsr";
 import ytpl from "ytpl";
 
@@ -129,13 +130,19 @@ export const setupSocket = (io: Server) => {
                 }
 
                 if (updatedRoom) {
+                    // FAILSAFE: If this is the only user, they MUST be the host
+                    if (updatedRoom.users.length === 1) {
+                        updatedRoom.hostId = user.id;
+                        console.log(`👑 Auto-assigned host to single user: ${username}`);
+                    }
+
                     socket.join(roomId);
                     socketToRoom.set(socket.id, roomId);
                     socket.emit(EVENTS.ROOM_JOINED, { roomId });
                     io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
 
                     // If this user is the host, send them any pending requests they might have missed
-                    if (room.hostId === user.id) {
+                    if (updatedRoom.hostId === user.id) {
                         pendingJoins.forEach((pending, pendingSocketId) => {
                             if (pending.roomId === roomId) {
                                 socket.emit(EVENTS.JOIN_REQUEST_RECEIVED, {
@@ -333,26 +340,28 @@ export const setupSocket = (io: Server) => {
             }
         });
 
-        socket.on(EVENTS.QUEUE_ADD, (payload: { videoId: string }) => {
+        socket.on(EVENTS.QUEUE_ADD, (payload: { videoId: string; title?: string; thumbnail?: string; source?: 'youtube' | 'spotify'; uri?: string; artist?: string; album?: string }) => {
             const roomId = socketToRoom.get(socket.id);
             if (!roomId) return;
 
-            // For MVP, we mock the metadata. 
-            // In Phase 10, we will fetch real titles from YouTube API.
             const video = {
                 id: payload.videoId,
-                title: `YouTube Video (${payload.videoId})`,
-                thumbnail: `https://img.youtube.com/vi/${payload.videoId}/default.jpg`,
+                title: payload.title || `Video (${payload.videoId})`,
+                thumbnail: payload.thumbnail || `https://img.youtube.com/vi/${payload.videoId}/default.jpg`,
                 addedBy: activeUsers.get(socket.id) || "Anon",
                 votes: 0,
                 voters: [],
+                source: payload.source || 'youtube',
+                uri: payload.uri,
+                artist: payload.artist,
+                album: payload.album
             };
 
             const updatedRoom = RoomStore.addToQueue(roomId, video);
 
             if (updatedRoom) {
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
-                console.log(`➕ Added to queue: ${payload.videoId}`);
+                console.log(`➕ Added to queue: ${payload.videoId} (${video.source})`);
             }
         });
 
@@ -376,13 +385,26 @@ export const setupSocket = (io: Server) => {
                     status: "PLAYING",
                     videoId: nextVideo!.id,
                     timestamp: 0,
+                    // source: nextVideo!.source, // Remove this from playback object if it's not part of the type
+                    meta: {
+                        title: nextVideo!.title,
+                        artist: nextVideo!.artist,
+                        album: nextVideo!.album,
+                        artwork: nextVideo!.thumbnail,
+                        uri: nextVideo!.uri
+                    }
                 });
+
+                // Explicitly update the top-level playbackSource
+                if (updatedRoom) {
+                    updatedRoom.playbackSource = nextVideo!.source || 'youtube';
+                }
 
                 // Save the shifted queue
                 room.queue = room.queue; // (In-memory reference allows this, but purely explicit is better)
 
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, room);
-                console.log(`⏭️ Next track: ${nextVideo!.id}`);
+                console.log(`⏭️ Next track: ${nextVideo!.id} [${updatedRoom?.playbackSource}]`);
             } else {
                 // Queue empty -> Stop
                 const updatedRoom = RoomStore.updatePlayback(roomId, {
@@ -494,8 +516,8 @@ export const setupSocket = (io: Server) => {
             }
         });
 
-        // --- AI-POWERED RECOMMENDATIONS ---
-        socket.on(EVENTS.RECOMMENDATIONS_REQUEST, async () => {
+        // --- AI-POWERED RECOMMENDATIONS (GEMINI) ---
+        socket.on(EVENTS.RECOMMENDATIONS_REQUEST, async (payload: { spotifyToken?: string; mood?: string } = {}) => {
             const roomId = socketToRoom.get(socket.id);
             if (!roomId) return;
 
@@ -503,66 +525,69 @@ export const setupSocket = (io: Server) => {
             if (!room) return;
 
             try {
-                // Analyze current queue and playing track to generate recommendations
+                // Analyze current queue and playing track
                 const queue = room.queue || [];
                 const currentVideoId = room.playback?.videoId;
 
-                // Collect track info for analysis
-                const tracks = [...queue];
-                if (currentVideoId && room.playback) {
-                    // Add current playing track if it exists
-                    const currentTrack = queue.find(t => t.id === currentVideoId);
-                    if (currentTrack) tracks.unshift(currentTrack);
+                // Determine Source
+                // If Spotify token is provided, prefer Spotify.
+                // Otherwise, check current playing or queue.
+                let source: 'youtube' | 'spotify' = payload.spotifyToken ? 'spotify' : 'youtube';
+
+                // If we defaulted to Spotify but want to be smarter (e.g. if user is explicitly playing YouTube?),
+                // we could check room state. But user request implies "if connected, use Spotify".
+                // So the token presence is the strongest signal of intent here.
+
+                // Fallback logic (if we didn't have a token, but maybe we should have? No, payload controls it)
+                if (!payload.spotifyToken) {
+                    if (room.playback && room.playback.source === 'spotify') {
+                        source = 'spotify';
+                    } else if (queue.length > 0) {
+                        const lastItem = queue[queue.length - 1];
+                        if (lastItem.source === 'spotify') {
+                            source = 'spotify';
+                        }
+                    }
                 }
 
-                // Extract artists/keywords from queue titles
-                const keywords = new Set<string>();
-                tracks.forEach(track => {
-                    const title = track.title.toLowerCase();
-                    // Remove common words and extract meaningful terms
-                    const words = title
-                        .replace(/\(.*?\)/g, '') // Remove parentheses content
-                        .replace(/\[.*?\]/g, '') // Remove brackets content
-                        .replace(/official|video|audio|music|lyric|mv/g, '') // Remove common terms
-                        .split(/[\s\-\,\/]+/)
-                        .filter(w => w.length > 3); // Keep meaningful words
-                    words.forEach(w => keywords.add(w));
+                // If we want Spotify but have no token, fall back to YouTube? 
+                // Or just try and fail? The service handles empty token by skipping Spotify search.
+                if (source === 'spotify' && !payload.spotifyToken) {
+                    console.warn("Spotify source requested but no token provided. Falling back to YouTube.");
+                    source = 'youtube';
+                }
+
+                // Collect context
+                const context = [];
+                if (currentVideoId && room.playback && room.playback.meta) {
+                    context.push({
+                        title: room.playback.meta.title || "",
+                        artist: room.playback.meta.artist || ""
+                    });
+                }
+                queue.slice(0, 4).forEach(t => {
+                    context.push({
+                        title: t.title,
+                        artist: t.artist || ""
+                    });
                 });
 
-                // Use top keywords to search for similar music
-                const topKeywords = Array.from(keywords).slice(0, 3).join(' ');
-                const recommendationQuery = topKeywords
-                    ? `${topKeywords} music video`
-                    : 'trending music video'; // Fallback if queue is empty
+                if (context.length === 0) {
+                    // Fallback context
+                    context.push({ title: "Trending", artist: "Pop" });
+                }
 
-                const results = await ytsr(recommendationQuery, { limit: 15 });
-                const recommendations = results.items
-                    .filter((i: any) => {
-                        if (i.type !== 'video') return false;
-                        // Filter out videos already in queue
-                        const alreadyInQueue = queue.some(q => q.id === i.id);
-                        if (alreadyInQueue) return false;
-
-                        // Prefer music content
-                        const title = i.title?.toLowerCase() || '';
-                        const channel = i.author?.name?.toLowerCase() || '';
-                        return title.includes('music') ||
-                            title.includes('official') ||
-                            channel.includes('vevo') ||
-                            channel.includes('music');
-                    })
-                    .slice(0, 8) // Return top 8 recommendations
-                    .map((i: any) => ({
-                        id: i.id,
-                        title: i.title,
-                        thumbnail: i.bestThumbnail.url,
-                        channelTitle: i.author?.name,
-                    }));
+                console.log(`🤖 Requesting Gemini recommendations for ${roomId} [${source}] (Mood: ${payload.mood || 'None'})`);
+                const recommendations = await RecommendationService.getRecommendations(context, source, payload.spotifyToken, payload.mood);
 
                 socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, recommendations);
-                console.log(`🤖 Generated ${recommendations.length} recommendations for ${roomId}`);
-            } catch (e) {
-                console.error("Recommendations error", e);
+                console.log(`🤖 Sent ${recommendations.length} recommendations`);
+            } catch (e: any) {
+                if (e.message === "RATE_LIMIT") {
+                    socket.emit(EVENTS.ERROR, { message: "AI is cooling down. Please wait a moment." });
+                } else {
+                    console.error("Recommendations error", e);
+                }
                 socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, []);
             }
         });

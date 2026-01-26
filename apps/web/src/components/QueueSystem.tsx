@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { EVENTS, Room } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 
+import { useSpotify } from "../context/SpotifyContext";
+
 interface QueueSystemProps {
     room: Room;
     socket: Socket | null;
@@ -36,6 +38,8 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     const [recommendations, setRecommendations] = useState<SearchResult[]>([]);
     const [isLoadingRecs, setIsLoadingRecs] = useState(false);
     const [showRecs, setShowRecs] = useState(false);
+    const [source, setSource] = useState<'youtube' | 'spotify'>('youtube');
+    const { spotifyToken, isConnected: spotifyConnected } = useSpotify();
     const debouncedQuery = useDebounce(query, 500);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -60,9 +64,32 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         }
 
         setIsSearching(true);
-        socket.emit(EVENTS.SEARCH_QUERY, { query: debouncedQuery });
+
+        if (source === 'youtube') {
+            socket.emit(EVENTS.SEARCH_QUERY, { query: debouncedQuery });
+        } else if (source === 'spotify' && spotifyConnected) {
+            // Use backend proxy for Spotify search to avoid exposing tokens if needed, 
+            // or use the token we have in context to search directly?
+            // The plan says "Spotify Routes ... GET /api/spotify/search".
+            // Let's use the backend route to keep it consistent with the plan.
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000'}/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}`, {
+                headers: {
+                    'Authorization': `Bearer ${spotifyToken}`
+                }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    setResults(data);
+                    setIsSearching(false);
+                })
+                .catch(err => {
+                    console.error("Spotify search failed", err);
+                    setIsSearching(false);
+                });
+        }
+
         setShowDropdown(true);
-    }, [debouncedQuery, socket]);
+    }, [debouncedQuery, socket, source, spotifyConnected, spotifyToken]);
 
     // Listen for results
     useEffect(() => {
@@ -79,17 +106,52 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
             setShowRecs(true);
         };
 
+
+
+        const handleError = (payload: { message: string }) => {
+            setIsLoadingRecs(false);
+            // Optional: Show toast here if not handled globally, 
+            // but SocketContext logs it. We just need to stop loading.
+            // Actually, let's show a specific alert for better UX
+            if (payload.message.includes("cooling down")) {
+                alert(payload.message);
+            }
+        };
+
         socket.on(EVENTS.SEARCH_RESULTS, handleResults);
         socket.on(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
+        socket.on(EVENTS.ERROR, handleError);
         return () => {
             socket.off(EVENTS.SEARCH_RESULTS, handleResults);
             socket.off(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
+            socket.off(EVENTS.ERROR, handleError);
         };
     }, [socket]);
 
     const handleAdd = (video: SearchResult) => {
         if (!socket) return;
-        socket.emit(EVENTS.QUEUE_ADD, { videoId: video.id });
+        // If source is Spotify, we need to send different payload or handle it on backend
+        // The backend queue item has `source` field.
+        // We should probably emit a generic ADD event and let backend handle, 
+        // BUT the current QUEUE_ADD event expects `videoId`.
+        // We need to update the payload to include source.
+        // Let's check `packages/shared/src/types.ts` again.
+        // It says `AddToQueuePayload` has `videoId` and `title`.
+        // We might need to update that or overload `videoId` with spotify URI?
+        // Actually, let's send `source` in the payload if possible, or just send the ID and let backend figure it out?
+        // Backend `addToQueue` takes a `Video` object.
+        // Wait, `QUEUE_ADD` event handler in backend probably constructs the video object.
+        // Let's assume we need to send source.
+
+        socket.emit(EVENTS.QUEUE_ADD, {
+            videoId: video.id,
+            title: video.title,
+            thumbnail: video.thumbnail,
+            source: (video as any).source || source, // Use video source if available (recommendations), else toggle state
+            uri: (video as any).uri, // Spotify URI
+            artist: (video as any).artist,
+            album: (video as any).album
+        });
         setQuery("");
         setResults([]);
         setShowDropdown(false);
@@ -100,24 +162,64 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         socket.emit(EVENTS.QUEUE_REMOVE, { roomId: room.id, index });
     };
 
-    const handleGetRecommendations = () => {
+    const [showMoodSelector, setShowMoodSelector] = useState(false);
+    const [customMood, setCustomMood] = useState("");
+
+    const MOODS = ["Chill", "Party", "Focus", "Energetic", "Late Night"];
+
+    const handleGetRecommendations = (mood?: string) => {
         if (!socket || isLoadingRecs) return;
         setIsLoadingRecs(true);
         setShowRecs(false);
-        socket.emit(EVENTS.RECOMMENDATIONS_REQUEST);
+        setShowMoodSelector(false);
+        socket.emit(EVENTS.RECOMMENDATIONS_REQUEST, { spotifyToken, mood });
     };
 
     return (
         <div className="flex flex-col h-full relative" ref={wrapperRef}>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="font-serif italic text-lg text-black dark:text-white">Queue</h3>
-                <button
-                    onClick={handleGetRecommendations}
-                    disabled={isLoadingRecs}
-                    className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isLoadingRecs ? "Analyzing..." : "🤖 Discover"}
-                </button>
+                <div className="relative">
+                    <button
+                        onClick={() => setShowMoodSelector(!showMoodSelector)}
+                        disabled={isLoadingRecs}
+                        className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isLoadingRecs ? "Analyzing..." : "🤖 Discover"}
+                    </button>
+
+                    {/* Mood Selector Popover */}
+                    {showMoodSelector && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-black border border-black dark:border-white shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
+                            <p className="text-[9px] uppercase tracking-widest text-gray-500 mb-2 px-1">Select Vibe</p>
+                            <div className="grid grid-cols-1 gap-1">
+                                {MOODS.map(mood => (
+                                    <button
+                                        key={mood}
+                                        onClick={() => handleGetRecommendations(mood)}
+                                        className="text-left px-2 py-1.5 text-xs font-serif hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+                                    >
+                                        {mood}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                <input
+                                    type="text"
+                                    placeholder="Custom..."
+                                    className="w-full px-2 py-1 text-xs bg-transparent border border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none transition-colors"
+                                    value={customMood}
+                                    onChange={(e) => setCustomMood(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && customMood.trim()) {
+                                            handleGetRecommendations(customMood);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* AI Recommendations Panel */}
@@ -171,7 +273,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
             <div className="relative mb-6 z-20">
                 <input
                     type="text"
-                    placeholder="SEARCH YOUTUBE"
+                    placeholder={source === 'spotify' ? "SEARCH SPOTIFY" : "SEARCH YOUTUBE"}
                     className="w-full py-2 bg-transparent border-b border-black dark:border-white outline-none font-sans text-xs uppercase tracking-widest placeholder:text-gray-400 dark:placeholder:text-gray-500 text-black dark:text-white focus:border-b-2 transition-all"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}

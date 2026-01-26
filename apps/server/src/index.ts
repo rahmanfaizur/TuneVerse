@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import http from "http";
 import cors from "cors";
@@ -5,6 +6,7 @@ import { Server } from "socket.io";
 import { setupSocket } from "./socket";
 import { RoomStore } from "./state/room-store";
 import authRoutes from "./routes/auth";
+import spotifyRoutes from "./routes/spotify";
 import { authenticateToken, AuthRequest } from "./middleware/auth";
 
 const app = express();
@@ -17,6 +19,9 @@ app.use(express.json());
 
 // Auth Routes
 app.use("/api/auth", authRoutes);
+
+// Spotify Routes
+app.use("/api/spotify", spotifyRoutes);
 
 // API Routes
 app.get("/api/rooms", (req, res) => {

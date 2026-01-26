@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function LoadingScreen({ message = "Loading..." }: { message?: string }) {
     return (
@@ -8,13 +9,21 @@ export default function LoadingScreen({ message = "Loading..." }: { message?: st
                     <div className="absolute inset-0 border-t-2 border-black dark:border-white rounded-full animate-spin"></div>
                     <div className="absolute inset-2 border-t-2 border-gray-400 dark:border-gray-600 rounded-full animate-spin-reverse"></div>
                 </div>
-                <div className="space-y-2">
-                    <h2 className="font-serif text-2xl italic text-black dark:text-white animate-pulse">
-                        TuneVerse
-                    </h2>
-                    <p className="font-sans text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-                        {message}
-                    </p>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <h2 className="font-serif text-2xl italic text-black dark:text-white animate-pulse">
+                            TuneVerse
+                        </h2>
+                        <p className="font-sans text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+                            {message}
+                        </p>
+                    </div>
+                    <Link
+                        href="/lobby"
+                        className="inline-block text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors border-b border-transparent hover:border-black dark:hover:border-white pb-0.5"
+                    >
+                        Go Home
+                    </Link>
                 </div>
             </div>
         </div>

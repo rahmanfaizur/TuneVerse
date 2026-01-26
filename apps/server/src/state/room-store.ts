@@ -24,6 +24,8 @@ export const RoomStore = {
             queue: [], // <--- Empty queue
             messages: [], // <--- Empty chat
             allowedUsers: [hostUser.username], // <--- Host is always allowed
+            playbackSource: 'youtube',
+            spotifyUsers: {},
         };
 
         rooms.set(roomId, newRoom);
@@ -161,6 +163,14 @@ export const RoomStore = {
             room.playback.status = "PLAYING";
             room.playback.timestamp = 0;
             room.playback.lastUpdated = Date.now();
+            room.playbackSource = video.source || 'youtube'; // <--- Set source
+            room.playback.meta = {
+                title: video.title,
+                artist: video.artist,
+                album: video.album,
+                artwork: video.thumbnail,
+                uri: video.uri
+            };
             // Remove from queue since it's now playing
             room.queue.shift();
         }
@@ -180,6 +190,7 @@ export const RoomStore = {
                 timestamp: 0,
                 lastUpdated: Date.now(),
             };
+            room.playbackSource = nextVideo!.source || 'youtube'; // <--- Set source
         } else {
             room.playback = {
                 status: "IDLE",

@@ -98,7 +98,7 @@ export default function RoomPage() {
                     </div>
                     <div className="pt-4">
                         <button
-                            onClick={() => router.push("/")}
+                            onClick={() => router.push("/lobby")}
                             className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 text-xs font-bold uppercase tracking-widest hover:opacity-80 transition"
                         >
                             Return Home
