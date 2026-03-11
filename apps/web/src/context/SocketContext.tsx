@@ -9,6 +9,7 @@ interface SocketContextType {
     isConnected: boolean;
     room: Room | null;
     error: string | null; // <--- NEW
+    fingerprint: string | null; // <--- NEW
     login: (username: string) => void;
     logout: () => void;
 }
@@ -18,6 +19,7 @@ const SocketContext = createContext<SocketContextType>({
     isConnected: false,
     room: null,
     error: null,
+    fingerprint: null,
     login: () => { },
     logout: () => { },
 });
@@ -29,8 +31,17 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [isConnected, setIsConnected] = useState(false);
     const [room, setRoom] = useState<Room | null>(null);
     const [error, setError] = useState<string | null>(null); // <--- NEW
+    const [fingerprint, setFingerprint] = useState<string | null>(null); // <--- NEW
 
     useEffect(() => {
+        // Initialize or get Fingerprint
+        let currentFingerprint = localStorage.getItem('tuneverse_fingerprint');
+        if (!currentFingerprint) {
+            currentFingerprint = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+            localStorage.setItem('tuneverse_fingerprint', currentFingerprint);
+        }
+        setFingerprint(currentFingerprint);
         // Smart Fallback: Use current hostname (e.g., 192.168.x.x) if env var is missing
         const protocol = window.location.protocol;
         const host = window.location.hostname;
@@ -103,7 +114,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <SocketContext.Provider value={{ socket, isConnected, room, error, login, logout }}>
+        <SocketContext.Provider value={{ socket, isConnected, room, error, fingerprint, login, logout }}>
             {children}
         </SocketContext.Provider>
     );

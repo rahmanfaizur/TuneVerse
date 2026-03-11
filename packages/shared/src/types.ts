@@ -4,6 +4,7 @@ export interface User {
     username: string; // "CoolGuy123"
     avatarUrl?: string; // <--- NEW
     color?: string;   // UI avatar color
+    fingerprint?: string; // <--- NEW: User fingerprint for persistence
 }
 
 // 1. Define a Video Item
@@ -49,6 +50,8 @@ export interface Room {
     allowedUsers: string[]; // <--- NEW: List of usernames allowed to join without approval
     playbackSource: 'youtube' | 'spotify'; // <--- NEW: Default playback source for room
     spotifyUsers: Record<string, { accessToken: string; expiresAt: number }>; // <--- NEW: Track Spotify auth per user
+    hostFingerprint?: string; // <--- NEW: Fingerprint of the creating host
+    allowedFingerprints?: string[]; // <--- NEW: Fingerprints allowed to join
 }
 
 // 5. Chat Message
@@ -66,12 +69,14 @@ export interface Message {
 export interface JoinRoomPayload {
     roomId: string;
     username: string;
+    fingerprint?: string; // <--- NEW
 }
 
 // 4. Payload for Creating
 export interface CreateRoomPayload {
     username: string;
     roomName?: string;
+    fingerprint?: string; // <--- NEW
 }
 
 // 3. Queue Payload

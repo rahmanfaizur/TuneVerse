@@ -26,6 +26,8 @@ export const RoomStore = {
             allowedUsers: [hostUser.username], // <--- Host is always allowed
             playbackSource: 'youtube',
             spotifyUsers: {},
+            hostFingerprint: hostUser.fingerprint, // <--- Store host's fingerprint
+            allowedFingerprints: hostUser.fingerprint ? [hostUser.fingerprint] : [], // <--- Add to allowed fingerprints
         };
 
         rooms.set(roomId, newRoom);
@@ -83,12 +85,12 @@ export const RoomStore = {
             // @ts-ignore
             if (!room.isPersistent) {
                 // Schedule cleanup instead of deleting immediately
-                console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 30s.`);
+                console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
                 const timeout = setTimeout(() => {
                     rooms.delete(roomId);
                     cleanupTimeouts.delete(roomId);
                     console.log(`🗑️ Room ${roomId} deleted after grace period.`);
-                }, 30000); // 30 seconds grace period
+                }, 300000); // 5 minutes (300,000 ms) grace period
 
                 cleanupTimeouts.set(roomId, timeout);
                 return undefined; // Room is effectively "gone" for this user, but exists for re-join
@@ -119,12 +121,16 @@ export const RoomStore = {
         return room;
     },
 
-    addAllowedUser: (roomId: string, username: string): Room | undefined => {
+    addAllowedUser: (roomId: string, username: string, fingerprint?: string): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;
 
         if (!room.allowedUsers.includes(username)) {
             room.allowedUsers.push(username);
+        }
+        if (fingerprint && (!room.allowedFingerprints || !room.allowedFingerprints.includes(fingerprint))) {
+            if (!room.allowedFingerprints) room.allowedFingerprints = [];
+            room.allowedFingerprints.push(fingerprint);
         }
         return room;
     },

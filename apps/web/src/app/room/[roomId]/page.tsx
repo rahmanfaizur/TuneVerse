@@ -11,7 +11,7 @@ import LoadingScreen from "../../../components/LoadingScreen";
 
 export default function RoomPage() {
     const { roomId } = useParams();
-    const { socket, room, isConnected, error } = useSocket(); // <--- Get error
+    const { socket, room, isConnected, error, fingerprint } = useSocket(); // <--- Get error and fingerprint
     const { user, isLoading } = useAuth();
     const router = useRouter();
     const [joinRequests, setJoinRequests] = useState<{ userId: string; username: string }[]>([]);
@@ -30,9 +30,9 @@ export default function RoomPage() {
         // If we are not in the room yet (e.g. refresh), join it
         if (!room || room.id !== roomId) {
             console.log(`🔄 Auto-joining room ${roomId} as ${user.username}`);
-            socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username });
+            socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username, fingerprint }); // <--- NEW: Send fingerprint
         }
-    }, [socket, isConnected, user, roomId, room, isLoading, router]);
+    }, [socket, isConnected, user, roomId, room, isLoading, router, fingerprint]);
 
     useEffect(() => {
         if (!socket) return;

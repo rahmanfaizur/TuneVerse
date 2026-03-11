@@ -34,12 +34,13 @@ export const setupSocket = (io: Server) => {
 
         // --- 1. CREATE ROOM ---
         socket.on(EVENTS.ROOM_CREATE, (payload: CreateRoomPayload & { isPersistent?: boolean }) => {
-            const { username, isPersistent, roomName } = payload;
+            const { username, isPersistent, roomName, fingerprint } = payload;
             // In a real app, userId comes from Auth, here we use socket.id for now
             const user = {
                 id: socket.id,
                 username,
-                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`,
+                fingerprint // <--- NEW
             };
 
             const newRoom = RoomStore.createRoom(user);
@@ -61,11 +62,12 @@ export const setupSocket = (io: Server) => {
 
         // --- 2. JOIN ROOM ---
         socket.on(EVENTS.ROOM_JOIN, async (payload: JoinRoomPayload) => {
-            const { roomId, username } = payload;
+            const { roomId, username, fingerprint } = payload;
             const user = {
                 id: socket.id,
                 username,
-                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${username}`,
+                fingerprint // <--- NEW
             };
 
             const room = RoomStore.getRoom(roomId);
@@ -81,8 +83,10 @@ export const setupSocket = (io: Server) => {
             // Actually, hostId IS socketId. So on refresh, hostId won't match new socketId.
             // But we can check if the room has no host (if we implement that) OR if the username matches the *previous* host?
             // Simpler: Check allowedUsers. Host is added to allowedUsers on create.
+            // NEW: Check fingerprint
+            const isAllowedByFingerprint = fingerprint && room.allowedFingerprints?.includes(fingerprint);
 
-            if (room.allowedUsers.includes(username)) {
+            if (room.allowedUsers.includes(username) || isAllowedByFingerprint) {
                 const updatedRoom = RoomStore.joinRoom(roomId, user);
 
                 // If this user was the host (reconnecting), we might need to restore their host status?
@@ -108,9 +112,14 @@ export const setupSocket = (io: Server) => {
 
                 // Better: If we have a pending host reassignment timeout for this room, CANCEL IT and make this user host.
                 console.log(`🔍 Checking host restoration for ${username} in ${roomId}. Timeout exists: ${hostReassignmentTimeouts.has(roomId)}`);
-                if (hostReassignmentTimeouts.has(roomId)) {
-                    clearTimeout(hostReassignmentTimeouts.get(roomId));
-                    hostReassignmentTimeouts.delete(roomId);
+                // NEW: Use fingerprint to precisely restore host without relying on timeouts alone
+                const isHostByFingerprint = fingerprint && fingerprint === room.hostFingerprint;
+
+                if (hostReassignmentTimeouts.has(roomId) || (isHostByFingerprint && !room.users.find(u => u.id === room.hostId))) {
+                    if (hostReassignmentTimeouts.has(roomId)) {
+                        clearTimeout(hostReassignmentTimeouts.get(roomId));
+                        hostReassignmentTimeouts.delete(roomId);
+                    }
                     // If this is the host returning, update hostId to new socketId
                     // We assume the person returning within grace period IS the host (or at least allowed).
                     // But strictly, we should check if they were the host.
@@ -192,7 +201,7 @@ export const setupSocket = (io: Server) => {
 
             if (approved) {
                 const updatedRoom = RoomStore.joinRoom(roomId, pending.user);
-                RoomStore.addAllowedUser(roomId, pending.user.username); // <--- Add to allowed list
+                RoomStore.addAllowedUser(roomId, pending.user.username, pending.user.fingerprint); // <--- Add to allowed list
 
                 // Get the socket of the approved user
                 const targetSocket = io.sockets.sockets.get(userId);

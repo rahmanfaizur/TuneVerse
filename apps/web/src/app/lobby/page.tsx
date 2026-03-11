@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import LoadingScreen from "../../components/LoadingScreen";
 
 export default function LobbyPage() {
-    const { socket, isConnected } = useSocket();
+    const { socket, isConnected, fingerprint } = useSocket(); // <--- NEW (get fingerprint)
     const { user, logout } = useAuth();
     const router = useRouter();
     const [roomName, setRoomName] = useState("");
@@ -83,7 +83,7 @@ export default function LobbyPage() {
         if (!socket || !user) return;
         // Persistent by default if not a guest
         const isPersistent = !user.isGuest;
-        socket.emit(EVENTS.ROOM_CREATE, { name: roomName, isPersistent, host: user.username });
+        socket.emit(EVENTS.ROOM_CREATE, { name: roomName, isPersistent, host: user.username, fingerprint }); // <--- NEW: Send fingerprint
     };
 
     useEffect(() => {
