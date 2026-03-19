@@ -131,14 +131,14 @@ export default function LobbyPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-white dark:bg-black text-black dark:text-white p-4">
+            <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
                 <div className="text-center space-y-4 max-w-md">
                     <div className="text-red-500 text-4xl mb-2">⚠️</div>
                     <h2 className="text-xl font-serif font-bold">Connection Error</h2>
-                    <p className="text-sm font-mono text-gray-500">{error}</p>
+                    <p className="text-sm font-mono text-muted-foreground">{error}</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="px-6 py-2 bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:opacity-80 transition"
+                        className="px-6 py-2 bg-accent text-accent-foreground text-xs font-bold uppercase tracking-widest hover:opacity-80 transition"
                     >
                         Retry
                     </button>
@@ -157,18 +157,18 @@ export default function LobbyPage() {
     };
 
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8 bg-white dark:bg-black text-black dark:text-white selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300">
+        <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8 bg-background text-foreground selection:bg-accent selection:text-accent-foreground transition-colors duration-300">
             <div className="max-w-2xl w-full space-y-12">
                 {/* Header */}
                 <div className="text-left md:text-center space-y-4">
                     <h1 className="text-4xl md:text-6xl lg:text-8xl font-serif tracking-tighter uppercase">
                         Tuneverse
                     </h1>
-                    <div className="flex flex-col sm:flex-row items-start md:items-center justify-start md:justify-center gap-2 sm:gap-4 text-xs font-sans tracking-[0.2em] uppercase text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col sm:flex-row items-start md:items-center justify-start md:justify-center gap-2 sm:gap-4 text-xs font-sans tracking-[0.2em] uppercase text-muted-foreground">
                         <span>Est. 2024</span>
-                        <span className="hidden sm:block w-1 h-1 bg-black dark:bg-white rounded-full" />
+                        <span className="hidden sm:block w-1 h-1 bg-accent rounded-full" />
                         <span>Sync Your Vibe</span>
-                        <span className="hidden sm:block w-1 h-1 bg-black dark:bg-white rounded-full" />
+                        <span className="hidden sm:block w-1 h-1 bg-accent rounded-full" />
                         <div className="flex items-center gap-1">
                             <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-600' : 'bg-red-500'}`} />
                             {isConnected ? "Online" : "Offline"}
@@ -182,7 +182,7 @@ export default function LobbyPage() {
                         <p className="text-2xl font-serif italic">Welcome, {user?.username}</p>
                         <button
                             onClick={logout}
-                            className="text-xs font-sans uppercase tracking-widest border-b border-black dark:border-white hover:opacity-50 transition"
+                            className="text-xs font-sans uppercase tracking-widest border-b border-accent hover:opacity-50 transition"
                         >
                             Sign Out
                         </button>
@@ -194,7 +194,7 @@ export default function LobbyPage() {
                             <input
                                 type="text"
                                 placeholder="Name your session"
-                                className="w-full py-3 bg-transparent border-b border-gray-300 dark:border-gray-700 focus:border-black dark:focus:border-white outline-none text-center font-serif text-xl placeholder:text-gray-400 placeholder:font-sans placeholder:text-sm transition-colors text-black dark:text-white"
+                                className="w-full py-3 bg-transparent border-b border-border focus:border-accent outline-none text-center font-serif text-xl placeholder:text-muted-foreground placeholder:font-sans placeholder:text-sm transition-colors text-foreground"
                                 value={roomName}
                                 onChange={(e) => setRoomName(e.target.value)}
                             />
@@ -203,7 +203,7 @@ export default function LobbyPage() {
 
                             <button
                                 onClick={createRoom}
-                                className="w-full py-4 bg-black dark:bg-white text-white dark:text-black font-sans text-xs uppercase tracking-[0.15em] hover:opacity-80 transition"
+                                className="w-full py-4 bg-accent text-accent-foreground font-sans text-xs uppercase tracking-[0.15em] hover:opacity-80 transition"
                             >
                                 Create Session
                             </button>
@@ -212,39 +212,39 @@ export default function LobbyPage() {
                         {/* Divider */}
                         <div className="relative py-4">
                             <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t border-gray-200 dark:border-gray-800"></span>
+                                <span className="w-full border-t border-border"></span>
                             </div>
                             <div className="relative flex justify-center">
-                                <span className="bg-white dark:bg-black px-4 text-xs font-serif italic text-gray-400">or join existing</span>
+                                <span className="bg-background px-4 text-xs font-serif italic text-muted-foreground">or join existing</span>
                             </div>
                         </div>
 
                         {/* Join Room Section */}
                         <div className="space-y-6">
-                            <div className="flex gap-0 border border-black dark:border-white">
+                            <div className="flex gap-0 border border-accent">
                                 <input
                                     type="text"
                                     placeholder="ENTER ROOM ID"
-                                    className="flex-1 p-4 bg-transparent outline-none font-mono text-sm uppercase text-center tracking-widest placeholder:font-sans text-black dark:text-white placeholder:text-gray-400"
+                                    className="flex-1 p-4 bg-transparent outline-none font-mono text-sm uppercase text-center tracking-widest placeholder:font-sans text-foreground placeholder:text-muted-foreground"
                                     value={roomIdInput}
                                     onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
                                 />
                                 <button
                                     onClick={joinRoom}
                                     disabled={!roomIdInput}
-                                    className="px-8 bg-black dark:bg-white text-white dark:text-black font-sans text-xs uppercase tracking-widest hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition border-l border-white dark:border-black"
+                                    className="px-8 bg-accent text-accent-foreground font-sans text-xs uppercase tracking-widest hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition border-l border-background"
                                 >
                                     Join
                                 </button>
                             </div>
 
                             {/* Tabs */}
-                            <div className="flex border-b border-gray-200 dark:border-gray-800">
+                            <div className="flex border-b border-border">
                                 <button
                                     onClick={() => setActiveTab("all")}
                                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "all"
-                                        ? "text-black dark:text-white border-b-2 border-black dark:border-white"
-                                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        ? "text-foreground border-b-2 border-accent"
+                                        : "text-muted-foreground hover:text-foreground"
                                         }`}
                                 >
                                     Online Rooms
@@ -252,8 +252,8 @@ export default function LobbyPage() {
                                 <button
                                     onClick={() => setActiveTab("my")}
                                     className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "my"
-                                        ? "text-black dark:text-white border-b-2 border-black dark:border-white"
-                                        : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        ? "text-foreground border-b-2 border-accent"
+                                        : "text-muted-foreground hover:text-foreground"
                                         }`}
                                 >
                                     My Rooms

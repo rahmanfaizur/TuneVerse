@@ -35,7 +35,7 @@ export default function Home() {
   // We won't auto-redirect unauthenticated users anymore so they can see the landing page.
 
   return (
-    <main className="min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black">
+    <main className="min-h-screen bg-background text-foreground transition-colors duration-300 overflow-x-hidden selection:bg-accent selection:text-accent-foreground">
 
       {/* 1. HERO SECTION */}
       <section className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24">
@@ -62,7 +62,7 @@ export default function Home() {
               <span className="italic opacity-80">Together.</span><br />
               Live.
             </h1>
-            <p className="font-sans text-xs md:text-sm uppercase tracking-[0.3em] text-gray-500 max-w-md mt-8">
+            <p className="font-sans text-xs md:text-sm uppercase tracking-[0.3em] text-muted-foreground max-w-md mt-8">
               The high-fidelity synchronization engine for absolute musical harmony.
             </p>
           </div>
@@ -77,7 +77,7 @@ export default function Home() {
             </svg>
             <Link
               href={user ? "/lobby" : "/login"}
-              className="px-8 py-4 bg-black dark:bg-white text-white dark:text-black font-sans text-xs uppercase tracking-[0.2em] hover:opacity-80 transition"
+              className="px-8 py-4 bg-accent text-accent-foreground font-sans text-xs uppercase tracking-[0.2em] hover:opacity-80 transition"
             >
               Enter The Lobby
             </Link>
@@ -86,7 +86,7 @@ export default function Home() {
       </section>
 
       {/* 2. SCROLLING MARQUEE */}
-      <div className="relative border-y border-gray-200 dark:border-gray-800 py-4 md:py-6 overflow-hidden bg-white dark:bg-black">
+      <div className="relative border-y border-border py-4 md:py-6 overflow-hidden bg-background">
         <div className="flex w-[200%] animate-marquee whitespace-nowrap">
           <div className="w-1/2 flex justify-around font-serif text-3xl md:text-5xl uppercase tracking-tighter opacity-80">
             <span>Sync Your Vibe</span>
@@ -116,7 +116,7 @@ export default function Home() {
         <div className="w-full flex flex-col lg:flex-row gap-12 lg:gap-24">
           {/* Left: Interactive List */}
           <div className="w-full lg:w-1/2 flex flex-col justify-center space-y-12">
-            <h2 className="font-sans text-[10px] uppercase tracking-widest text-gray-400 mb-8 border-b border-gray-200 dark:border-gray-800 pb-4">
+            <h2 className="font-sans text-[10px] uppercase tracking-widest text-muted-foreground mb-8 border-b border-border pb-4">
               The Sound of Style
             </h2>
 
@@ -131,7 +131,7 @@ export default function Home() {
                     {feature.title}
                   </h3>
                   <div className={`overflow-hidden transition-all duration-500 ease-in-out ${activeFeature === idx ? 'max-h-40 mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <p className="font-sans text-xs md:text-sm uppercase tracking-widest text-gray-500 max-w-sm">
+                    <p className="font-sans text-xs md:text-sm uppercase tracking-widest text-muted-foreground max-w-sm">
                       {feature.description}
                     </p>
                   </div>
@@ -141,7 +141,7 @@ export default function Home() {
           </div>
 
           {/* Right: Image Display */}
-          <div className="w-full lg:w-1/2 min-h-[400px] lg:min-h-0 relative bg-gray-100 dark:bg-gray-900 overflow-hidden">
+          <div className="w-full lg:w-1/2 min-h-[400px] lg:min-h-0 relative bg-muted overflow-hidden">
             {features.map((feature, idx) => (
               <div
                 key={idx}
@@ -152,7 +152,7 @@ export default function Home() {
                   backgroundPosition: 'center',
                 }}
               >
-                <div className="absolute inset-0 bg-black/20" />
+                <div className="absolute inset-0 bg-accent/20" />
               </div>
             ))}
           </div>
@@ -160,11 +160,11 @@ export default function Home() {
       </section>
 
       {/* 4. HOW TO START */}
-      <section className="py-24 bg-gray-50 dark:bg-[#0a0a0a] border-t border-gray-200 dark:border-gray-900">
+      <section className="py-24 bg-muted border-t border-border">
         <div className="max-w-6xl mx-auto px-6 md:px-12">
           <div className="text-center mb-24">
             <h2 className="font-serif text-5xl md:text-7xl uppercase tracking-tighter">Three Steps.</h2>
-            <p className="font-sans text-xs uppercase tracking-[0.3em] text-gray-500 mt-6">Zero Friction.</p>
+            <p className="font-sans text-xs uppercase tracking-[0.3em] text-muted-foreground mt-6">Zero Friction.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8">
@@ -174,10 +174,10 @@ export default function Home() {
               { num: "03", title: "Press Play", desc: "The engine handles the absolute sync." }
             ].map((step, idx) => (
               <div key={idx} className="flex flex-col items-center text-center space-y-6">
-                <span className="font-serif text-6xl text-gray-200 dark:text-gray-800 italic">{step.num}</span>
-                <div className="w-12 h-[1px] bg-black dark:bg-white" />
+                <span className="font-serif text-6xl text-border italic">{step.num}</span>
+                <div className="w-12 h-[1px] bg-accent" />
                 <h4 className="font-sans text-sm uppercase tracking-widest font-bold">{step.title}</h4>
-                <p className="font-sans text-xs uppercase tracking-widest text-gray-500">{step.desc}</p>
+                <p className="font-sans text-xs uppercase tracking-widest text-muted-foreground">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -185,20 +185,20 @@ export default function Home() {
       </section>
 
       {/* 5. FINAL CTA */}
-      <section className="py-32 px-6 flex flex-col items-center justify-center text-center border-t border-gray-200 dark:border-gray-900">
+      <section className="py-32 px-6 flex flex-col items-center justify-center text-center border-t border-border">
         <h2 className="font-serif text-5xl md:text-7xl lg:text-8xl uppercase tracking-tighter mb-12">
           Ready to drop<br /><span className="italic">the needle?</span>
         </h2>
         <div className="flex flex-col sm:flex-row gap-6">
           <Link
             href="/signup"
-            className="px-12 py-5 bg-black dark:bg-white text-white dark:text-black font-sans text-xs font-bold uppercase tracking-[0.2em] hover:scale-105 transition-transform"
+            className="px-12 py-5 bg-accent text-accent-foreground font-sans text-xs font-bold uppercase tracking-[0.2em] hover:scale-105 transition-transform"
           >
             Create Account
           </Link>
           <Link
             href="/login"
-            className="px-12 py-5 border border-black dark:border-white text-black dark:text-white font-sans text-xs font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
+            className="px-12 py-5 border border-accent text-foreground font-sans text-xs font-bold uppercase tracking-[0.2em] hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             Join as Guest
           </Link>
@@ -206,11 +206,11 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-gray-200 dark:border-gray-900 flex flex-col md:flex-row justify-between items-center px-6 md:px-12 font-sans text-[10px] uppercase tracking-widest text-gray-500">
+      <footer className="py-8 border-t border-border flex flex-col md:flex-row justify-between items-center px-6 md:px-12 font-sans text-[10px] uppercase tracking-widest text-muted-foreground">
         <span>© {new Date().getFullYear()} TuneVerse. All rights reserved.</span>
         <div className="flex gap-6 mt-4 md:mt-0">
-          <Link href="#" className="hover:text-black dark:hover:text-white transition-colors">Privacy</Link>
-          <Link href="#" className="hover:text-black dark:hover:text-white transition-colors">Terms</Link>
+          <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>
+          <Link href="#" className="hover:text-foreground transition-colors">Terms</Link>
         </div>
       </footer>
 
