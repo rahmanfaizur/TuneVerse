@@ -269,6 +269,22 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 </div>
             )}
 
+            {/* Source Toggle */}
+            <div className="flex gap-4 mb-2 z-20 relative">
+                <button
+                    onClick={() => setSource('youtube')}
+                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'youtube' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
+                >
+                    YouTube
+                </button>
+                <button
+                    onClick={() => setSource('spotify')}
+                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'spotify' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
+                >
+                    Spotify
+                </button>
+            </div>
+
             {/* Search Input */}
             <div className="relative mb-6 z-20">
                 <input

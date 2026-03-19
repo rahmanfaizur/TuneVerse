@@ -4,6 +4,8 @@ import { AuthProvider } from "../context/AuthContext";
 import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
 import { Playfair_Display, Inter } from "next/font/google";
+import { ThemeProvider } from "../components/ThemeProvider";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -16,8 +18,6 @@ const inter = Inter({
   variable: "--font-sans",
   display: "swap",
 });
-
-import { ThemeProvider } from "../components/ThemeProvider";
 
 export default function RootLayout({
   children,
@@ -37,6 +37,7 @@ export default function RootLayout({
             <SpotifyProvider>
               <SocketProvider>
                 {children}
+                <ThemeToggle />
                 <Toaster position="top-center" richColors />
               </SocketProvider>
             </SpotifyProvider>

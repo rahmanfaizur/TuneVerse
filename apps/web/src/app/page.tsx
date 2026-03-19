@@ -28,6 +28,11 @@ export default function Home() {
       title: "03. GUEST ACCESS",
       description: "Jump into a session instantly via deep link. No account creation required to listen in.",
       imgUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000&auto=format&fit=crop"
+    },
+    {
+      title: "04. YOUTUBE SYNC",
+      description: "Watch and listen together. Synchronized video playback for the entire room with zero latency.",
+      imgUrl: "https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=1000&auto=format&fit=crop"
     }
   ];
 
@@ -177,7 +182,7 @@ export default function Home() {
                 <span className="font-serif text-6xl text-border italic">{step.num}</span>
                 <div className="w-12 h-[1px] bg-accent" />
                 <h4 className="font-sans text-sm uppercase tracking-widest font-bold">{step.title}</h4>
-                <p className="font-sans text-xs uppercase tracking-widest text-muted-foreground">{step.desc}</p>
+                <p className="font-sans text-xs uppercase tracking-wide text-muted-foreground">{step.desc}</p>
               </div>
             ))}
           </div>
