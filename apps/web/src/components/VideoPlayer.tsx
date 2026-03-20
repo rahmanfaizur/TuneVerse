@@ -166,7 +166,7 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
     return (
         <div className="w-full h-full bg-black relative flex flex-col group">
-            <div className="flex-1 relative bg-black dark:bg-black flex items-center justify-center overflow-hidden">
+            <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                 {!room.playback.videoId ? (
                     <div className="text-center space-y-4 p-6 animate-in fade-in duration-700 max-w-sm border border-white/10 bg-white/5 rounded-2xl backdrop-blur-sm">
                         <div className="w-16 h-16 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -231,14 +231,14 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
             </div>
 
             {/* Control Bar */}
-            <div className="bg-gray-900 border-t border-gray-700 p-2 md:p-3 flex items-center justify-between relative z-10 h-12 md:h-16">
+            <div className="bg-background border-t border-border p-2 md:p-3 flex items-center justify-between relative z-10 h-12 md:h-16 shadow-lg transition-colors">
                 {/* Left: Playback Controls */}
-                <div className="flex items-center gap-4 md:gap-6">
+                <div className="flex items-center gap-4 md:gap-6 pl-2">
                     {room.hostId === socket?.id ? (
                         <>
                             <button
                                 onClick={handlePrevious}
-                                className="text-gray-400 hover:text-white transition hover:scale-110 active:scale-95"
+                                className="text-muted-foreground hover:text-foreground transition hover:scale-110 active:scale-95"
                                 title="Previous"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
@@ -246,7 +246,7 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
                             <button
                                 onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
-                                className="bg-white text-black rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg shadow-white/10"
+                                className="bg-foreground text-background rounded-full w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:scale-105 active:scale-95 transition shadow-lg shadow-black/10 dark:shadow-white/10"
                             >
                                 {room.playback.status === "PLAYING" ? (
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
@@ -257,14 +257,14 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
 
                             <button
                                 onClick={handleSkip}
-                                className="text-gray-400 hover:text-white transition hover:scale-110 active:scale-95"
+                                className="text-muted-foreground hover:text-foreground transition hover:scale-110 active:scale-95"
                                 title="Skip"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
                             </button>
                         </>
                     ) : (
-                        <div className="flex items-center gap-2 text-gray-500 text-[10px] md:text-xs font-sans uppercase tracking-widest">
+                        <div className="flex items-center gap-2 text-muted-foreground text-[10px] md:text-xs font-sans uppercase tracking-widest pl-2">
                             <span>Synced</span>
                         </div>
                     )}
@@ -286,7 +286,7 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                 {/* Mobile Reaction Button & Menu */}
                 <div className="md:hidden relative">
                     {showMobileReactions && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-gray-800 border border-gray-700 rounded-lg p-2 flex flex-col gap-2 shadow-xl animate-in fade-in slide-in-from-bottom-2">
+                        <div className="absolute bottom-full right-0 mb-2 bg-background border border-border rounded-lg p-2 flex flex-col gap-2 shadow-xl animate-in fade-in slide-in-from-bottom-2">
                             {["🔥", "❤️", "😂", "😮", "🎉"].map((emoji) => (
                                 <button
                                     key={emoji}
@@ -303,14 +303,14 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                     )}
                     <button
                         onClick={() => setShowMobileReactions(!showMobileReactions)}
-                        className="text-xl p-2 text-gray-400 hover:text-white transition"
+                        className="text-xl p-2 text-muted-foreground hover:text-foreground transition"
                     >
                         😊
                     </button>
                 </div>
 
                 {/* Right: Status */}
-                <div className="text-[10px] md:text-xs text-gray-500 font-mono hidden sm:block">
+                <div className="text-[10px] md:text-xs text-muted-foreground font-mono hidden sm:block pr-2">
                     {room.playback.status}
                 </div>
             </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { EVENTS, Room } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
+import { toast } from "sonner";
 
 import { useSpotify } from "../context/SpotifyContext";
 
@@ -110,11 +111,8 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
 
         const handleError = (payload: { message: string }) => {
             setIsLoadingRecs(false);
-            // Optional: Show toast here if not handled globally, 
-            // but SocketContext logs it. We just need to stop loading.
-            // Actually, let's show a specific alert for better UX
             if (payload.message.includes("cooling down")) {
-                alert(payload.message);
+                toast.error(payload.message);
             }
         };
 
@@ -178,36 +176,36 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     return (
         <div className="flex flex-col h-full relative" ref={wrapperRef}>
             <div className="flex items-center justify-between mb-4">
-                <h3 className="font-serif italic text-lg text-black dark:text-white">Queue</h3>
+                <h3 className="font-serif italic text-lg text-foreground">Queue</h3>
                 <div className="relative">
                     <button
                         onClick={() => setShowMoodSelector(!showMoodSelector)}
                         disabled={isLoadingRecs}
-                        className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-border text-foreground hover:bg-foreground hover:text-background transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoadingRecs ? "Analyzing..." : "🤖 Discover"}
                     </button>
 
                     {/* Mood Selector Popover */}
                     {showMoodSelector && (
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-black border border-black dark:border-white shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
-                            <p className="text-[9px] uppercase tracking-widest text-gray-500 mb-2 px-1">Select Vibe</p>
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-background border border-border shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
+                            <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-2 px-1">Select Vibe</p>
                             <div className="grid grid-cols-1 gap-1">
                                 {MOODS.map(mood => (
                                     <button
                                         key={mood}
                                         onClick={() => handleGetRecommendations(mood)}
-                                        className="text-left px-2 py-1.5 text-xs font-serif hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
+                                        className="text-left px-2 py-1.5 text-xs font-serif hover:bg-muted transition-colors text-foreground"
                                     >
                                         {mood}
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                            <div className="mt-2 pt-2 border-t border-border/50">
                                 <input
                                     type="text"
                                     placeholder="Custom..."
-                                    className="w-full px-2 py-1 text-xs bg-transparent border border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none transition-colors"
+                                    className="w-full px-2 py-1 text-xs bg-transparent border border-border/50 focus:border-border outline-none transition-colors text-foreground placeholder-muted-foreground"
                                     value={customMood}
                                     onChange={(e) => setCustomMood(e.target.value)}
                                     onKeyDown={(e) => {
@@ -224,19 +222,19 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
 
             {/* AI Recommendations Panel */}
             {showRecs && recommendations.length > 0 && (
-                <div className="mb-4 border border-black dark:border-white p-3 bg-gray-50 dark:bg-gray-900/50">
+                <div className="mb-4 border border-border p-3 bg-muted/30">
                     <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-400">
+                        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
                             🎵 AI Recommended ({recommendations.length})
                         </p>
                         <button
                             onClick={() => setShowRecs(false)}
-                            className="text-[9px] uppercase tracking-widest text-gray-500 hover:text-black dark:hover:text-white"
+                            className="text-[9px] uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
                         >
                             Close
                         </button>
                     </div>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                         {recommendations.map((video) => (
                             <button
                                 key={video.id}
@@ -245,22 +243,22 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                     // Remove from recommendations after adding
                                     setRecommendations(prev => prev.filter(v => v.id !== video.id));
                                 }}
-                                className="w-full text-left p-2 hover:bg-white dark:hover:bg-gray-800 flex gap-2 items-center group transition-colors border-b border-gray-200 dark:border-gray-700 last:border-0"
+                                className="w-full text-left p-2 hover:bg-muted flex gap-2 items-center group transition-colors border-b border-border/30 last:border-0"
                             >
                                 <img
                                     src={video.thumbnail}
                                     alt={video.title}
-                                    className="w-12 h-7 object-cover grayscale group-hover:grayscale-0 transition-all"
+                                    className="w-12 h-7 object-cover grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100"
                                 />
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-serif text-xs truncate text-black dark:text-white">
+                                    <p className="font-serif text-xs truncate text-foreground group-hover:italic transition-all">
                                         {video.title}
                                     </p>
-                                    <p className="text-[8px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    <p className="text-[8px] uppercase tracking-wider text-muted-foreground">
                                         {video.channelTitle}
                                     </p>
                                 </div>
-                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
+                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-foreground">
                                     +
                                 </span>
                             </button>
@@ -273,13 +271,13 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
             <div className="flex gap-4 mb-2 z-20 relative">
                 <button
                     onClick={() => setSource('youtube')}
-                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'youtube' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
+                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'youtube' ? 'border-border text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                 >
                     YouTube
                 </button>
                 <button
                     onClick={() => setSource('spotify')}
-                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'spotify' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
+                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'spotify' ? 'border-border text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                 >
                     Spotify
                 </button>
@@ -290,7 +288,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 <input
                     type="text"
                     placeholder={source === 'spotify' ? "SEARCH SPOTIFY" : "SEARCH YOUTUBE"}
-                    className="w-full py-2 bg-transparent border-b border-black dark:border-white outline-none font-sans text-xs uppercase tracking-widest placeholder:text-gray-400 dark:placeholder:text-gray-500 text-black dark:text-white focus:border-b-2 transition-all"
+                    className="w-full py-2 bg-transparent border-b border-border outline-none font-sans text-xs uppercase tracking-widest placeholder:text-muted-foreground text-foreground focus:border-foreground transition-all"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => {
@@ -299,33 +297,33 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 />
                 {isSearching && (
                     <div className="absolute right-0 top-2">
-                        <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-3 h-3 border-2 border-border border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 )}
 
                 {/* Dropdown Results */}
                 {showDropdown && results.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-black border border-black dark:border-white shadow-xl max-h-80 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border shadow-2xl max-h-80 overflow-y-auto">
                         {results.map((video) => (
                             <button
                                 key={video.id}
                                 onClick={() => handleAdd(video)}
-                                className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-900 flex gap-3 items-center group transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
+                                className="w-full text-left p-3 hover:bg-muted flex gap-3 items-center group transition-colors border-b border-border/30 last:border-0"
                             >
                                 <img
                                     src={video.thumbnail}
                                     alt={video.title}
-                                    className="w-16 h-9 object-cover grayscale group-hover:grayscale-0 transition-all"
+                                    className="w-16 h-9 object-cover grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all border border-border/10"
                                 />
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-serif text-sm truncate text-black dark:text-white group-hover:italic">
+                                    <p className="font-serif text-sm truncate text-foreground group-hover:italic transition-all">
                                         {video.title}
                                     </p>
-                                    <p className="text-[9px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground mt-0.5">
                                         {video.channelTitle}
                                     </p>
                                 </div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
+                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-foreground bg-accent text-accent-foreground px-2 py-1">
                                     Add
                                 </span>
                             </button>
@@ -337,21 +335,21 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
             {/* Queue List */}
             <div className="flex-1 overflow-y-auto pr-2 space-y-4 z-10">
                 {queue.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 dark:text-gray-600">
+                    <div className="text-center py-8 text-muted-foreground">
                         <p className="font-serif italic text-sm">The queue is empty.</p>
                         <p className="text-[10px] font-sans uppercase tracking-widest mt-1">Search to add a vibe.</p>
                     </div>
                 ) : (
                     queue.map((video, index) => (
-                        <div key={`${video.id}-${index}`} className="group flex gap-3 items-start">
-                            <div className="w-6 text-[10px] font-mono text-gray-400 dark:text-gray-600 pt-1">
+                        <div key={`${video.id}-${index}`} className="group flex gap-3 items-start p-2 hover:bg-muted/30 transition-colors border-b border-border/20 last:border-0">
+                            <div className="w-6 text-[10px] font-mono text-muted-foreground pt-1">
                                 {(index + 1).toString().padStart(2, '0')}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-serif text-sm leading-tight truncate text-black dark:text-white group-hover:underline decoration-1 underline-offset-2">
+                                <p className="font-serif text-sm leading-tight truncate text-foreground group-hover:underline decoration-1 underline-offset-2 transition-all">
                                     {video.title}
                                 </p>
-                                <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
                                     Added by {video.addedBy}
                                 </p>
                             </div>
@@ -359,7 +357,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                             {(room.hostId === socket?.id || video.addedBy === socket?.id) && (
                                 <button
                                     onClick={() => handleDelete(index)}
-                                    className="opacity-0 group-hover:opacity-100 text-[10px] uppercase tracking-widest text-red-500 hover:text-red-600 transition"
+                                    className="opacity-0 group-hover:opacity-100 text-[9px] uppercase tracking-widest text-red-500 hover:text-red-600 transition-all px-2 py-1 border border-transparent hover:border-red-500/30"
                                 >
                                     Remove
                                 </button>
@@ -372,11 +370,11 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                         if (!socket) return;
                                         socket.emit(EVENTS.QUEUE_UPVOTE, { videoId: video.id });
                                     }}
-                                    className={`text-xs hover:scale-110 transition ${video.voters?.includes(socket?.id || "") ? "text-blue-500" : "text-gray-400 dark:text-gray-600"}`}
+                                    className={`text-xs hover:scale-110 transition ${video.voters?.includes(socket?.id || "") ? "text-blue-500" : "text-muted-foreground hover:text-foreground"}`}
                                 >
                                     👍
                                 </button>
-                                <span className="text-[9px] font-mono text-gray-400">{video.votes || 0}</span>
+                                <span className="text-[9px] font-mono text-muted-foreground">{video.votes || 0}</span>
                             </div>
                         </div>
                     ))
