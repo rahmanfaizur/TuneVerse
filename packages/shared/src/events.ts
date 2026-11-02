@@ -10,7 +10,8 @@ export const EVENTS = {
 
     // Server Updates
     ROOM_UPDATE: "ROOM_UPDATE", // Server -> Client (Broadcast room state)
-    ERROR: "ERROR",             // Server -> Client (e.g., "Room full")
+    ERROR: "ERROR",             // Server -> Client, something fatal for this page
+    NOTICE: "NOTICE",           // Server -> Client, just a passing message
 
     // Player Actions (Client -> Server)
     PLAYER_PLAY: "PLAYER_PLAY",

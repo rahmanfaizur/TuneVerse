@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
+import { toast } from "sonner";
 import { EVENTS, PublicRoom } from "@tuneverse/shared";
 
 interface SocketContextType {
@@ -64,7 +65,6 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: PublicRoom) => {
-            console.log("🏠 Room Updated:", updatedRoom);
             setRoom(updatedRoom);
             setError(null); // Clear error on successful update
         });
@@ -72,6 +72,10 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socketInstance.on(EVENTS.ERROR, (payload: { message: string }) => {
             console.error("🚨 Socket Error:", payload.message);
             setError(payload.message);
+        });
+
+        socketInstance.on(EVENTS.NOTICE, (payload: { message: string }) => {
+            toast(payload.message);
         });
 
         socketInstance.on("connect_error", (err) => {

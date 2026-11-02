@@ -3,8 +3,7 @@ import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tune
 import { RoomStore, toPublicRoom } from "./state/room-store";
 import { isValidPayload } from "./socket-validation";
 import { RecommendationService } from "./services/recommendation";
-import ytsr from "ytsr";
-import ytpl from "ytpl";
+import { YouTubeService, parseYouTubeLink } from "./services/youtube";
 
 
 const socketToRoom = new Map<string, string>(); // socketId -> roomId (NEW: fast lookup)
@@ -387,69 +386,37 @@ export const setupSocket = (io: Server) => {
         });
 
         socket.on(EVENTS.SEARCH_QUERY, async (payload: SearchPayload) => {
-            // Check if it's a playlist URL
-            if (ytpl.validateID(payload.query)) {
-                try {
-                    const playlist = await ytpl(payload.query, { limit: 20 });
+            const link = parseYouTubeLink(payload.query);
+
+            try {
+                if (link?.playlistId) {
                     const roomId = socketToRoom.get(socket.id);
                     if (roomId) {
-                        for (const item of playlist.items) {
-                            const video = {
-                                id: item.id,
-                                title: item.title,
-                                thumbnail: item.bestThumbnail.url || "",
+                        const videos = await YouTubeService.getPlaylistVideos(link.playlistId);
+                        for (const video of videos) {
+                            RoomStore.addToQueue(roomId, {
+                                ...video,
                                 addedBy: usernameIn(roomId, socket.id),
                                 votes: 0,
                                 voters: [],
-                            };
-                            RoomStore.addToQueue(roomId, video);
+                                source: "youtube",
+                            });
                         }
                         const room = RoomStore.getRoom(roomId);
                         if (room) io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(room));
-                        console.log(`📜 Added playlist ${playlist.title} to ${roomId}`);
+                        socket.emit(EVENTS.NOTICE, {
+                            message: videos.length ? `Added ${videos.length} songs to the queue` : "Couldn't read that playlist. Is it private?",
+                        });
                     }
-                } catch (e) {
-                    console.error("Playlist error", e);
+                    socket.emit(EVENTS.SEARCH_RESULTS, []);
+                    return;
                 }
-                return;
-            }
 
-            // Normal Search - Filter for music videos only
-            try {
-                // Append "music video" or "official audio" to queries for better music results
-                const musicQuery = payload.query.toLowerCase().includes('music video') ||
-                    payload.query.toLowerCase().includes('official') ||
-                    payload.query.toLowerCase().includes('audio')
-                    ? payload.query
-                    : `${payload.query} music video`;
-
-                const results = await ytsr(musicQuery, { limit: 10 }); // Increased limit to filter better
-                const videos = results.items
-                    .filter((i: any) => {
-                        if (i.type !== 'video') return false;
-                        // Additional filtering: prefer music-related content
-                        const title = i.title?.toLowerCase() || '';
-                        const channel = i.author?.name?.toLowerCase() || '';
-                        const isMusicRelated =
-                            title.includes('music') ||
-                            title.includes('official') ||
-                            title.includes('audio') ||
-                            title.includes('video') ||
-                            channel.includes('vevo') ||
-                            channel.includes('official') ||
-                            channel.includes('music');
-                        return isMusicRelated;
-                    })
-                    .slice(0, 5) // Limit to top 5 after filtering
-                    .map((i: any) => ({
-                        id: i.id,
-                        title: i.title,
-                        thumbnail: i.bestThumbnail.url,
-                        channelTitle: i.author?.name,
-                    }));
-                socket.emit(EVENTS.SEARCH_RESULTS, videos);
+                socket.emit(EVENTS.SEARCH_RESULTS, await YouTubeService.search(link?.videoId ?? payload.query));
             } catch (e) {
-                console.error("Search error", e);
+                console.error("YouTube search failed", e);
+                socket.emit(EVENTS.NOTICE, { message: "YouTube search isn't working right now. Try again in a bit." });
+                socket.emit(EVENTS.SEARCH_RESULTS, []);
             }
         });
 
@@ -518,13 +485,13 @@ export const setupSocket = (io: Server) => {
                 const recommendations = await RecommendationService.getRecommendations(context, source, payload.spotifyToken, payload.mood);
 
                 socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, recommendations);
+                if (recommendations.length === 0) {
+                    socket.emit(EVENTS.NOTICE, { message: "Couldn't come up with suggestions right now. Try again in a bit." });
+                }
                 console.log(`🤖 Sent ${recommendations.length} recommendations`);
             } catch (e: any) {
-                if (e.message === "RATE_LIMIT") {
-                    socket.emit(EVENTS.ERROR, { message: "AI is cooling down. Please wait a moment." });
-                } else {
-                    console.error("Recommendations error", e);
-                }
+                console.error("Recommendations error", e);
+                socket.emit(EVENTS.NOTICE, { message: "Couldn't come up with suggestions right now. Try again in a bit." });
                 socket.emit(EVENTS.RECOMMENDATIONS_RESULTS, []);
             }
         });
