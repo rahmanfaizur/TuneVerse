@@ -33,9 +33,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.log
-*.log
 
 # Misc
 .DS_Store
 *.pem
-*.md
+todo.md
+docs/
+
