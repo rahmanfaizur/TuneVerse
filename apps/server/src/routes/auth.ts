@@ -1,18 +1,35 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { prisma } from "@tuneverse/database";
+import { config } from "../config";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
+
+router.use(rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    message: { error: "Too many attempts, try again in a few minutes" },
+}));
+
+const isText = (value: unknown, max: number): value is string =>
+    typeof value === "string" && value.trim().length > 0 && value.length <= max;
 
 // Signup
 router.post("/signup", async (req, res) => {
     try {
         const { username, email, password } = req.body;
 
-        if (!username || !email || !password) {
-            return res.status(400).json({ error: "Missing required fields" });
+        if (!isText(username, 30) || !isText(email, 254) || !isText(password, 72)) {
+            return res.status(400).json({ error: "Missing or invalid fields" });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({ error: "Password must be at least 8 characters" });
         }
 
         const existingUser = await prisma.user.findFirst({
@@ -38,7 +55,7 @@ router.post("/signup", async (req, res) => {
 
         const token = jwt.sign(
             { id: user.id, username: user.username, isGuest: false },
-            JWT_SECRET,
+            config.jwtSecret,
             { expiresIn: "7d" }
         );
 
@@ -55,8 +72,8 @@ router.post("/login", async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        if (!email || !password) {
-            return res.status(400).json({ error: "Missing required fields" });
+        if (!isText(email, 254) || !isText(password, 72)) {
+            return res.status(400).json({ error: "Missing or invalid fields" });
         }
 
         const user = await prisma.user.findUnique({
@@ -75,7 +92,7 @@ router.post("/login", async (req, res) => {
 
         const token = jwt.sign(
             { id: user.id, username: user.username, isGuest: user.isGuest },
-            JWT_SECRET,
+            config.jwtSecret,
             { expiresIn: "7d" }
         );
 
@@ -93,6 +110,10 @@ router.post("/guest", async (req, res) => {
         const { username } = req.body;
 
         // If no username provided, generate one
+        if (username !== undefined && username !== "" && !isText(username, 30)) {
+            return res.status(400).json({ error: "Invalid username" });
+        }
+
         const guestName = username || `Guest-${Math.floor(Math.random() * 10000)}`;
 
         // Check if username taken (unlikely for random guest, but possible for custom guest name)
@@ -113,7 +134,7 @@ router.post("/guest", async (req, res) => {
 
         const token = jwt.sign(
             { id: user.id, username: user.username, isGuest: true },
-            JWT_SECRET,
+            config.jwtSecret,
             { expiresIn: "24h" }
         );
 
@@ -126,8 +147,6 @@ router.post("/guest", async (req, res) => {
 });
 
 // Get Me
-import { authenticateToken, AuthRequest } from "../middleware/auth";
-
 router.get("/me", authenticateToken, async (req: AuthRequest, res) => {
     if (!req.user) return res.sendStatus(401);
 

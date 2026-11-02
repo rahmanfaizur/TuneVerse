@@ -2,12 +2,12 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { EVENTS, Room } from "@tuneverse/shared"; // Import Room type
+import { EVENTS, PublicRoom } from "@tuneverse/shared";
 
 interface SocketContextType {
     socket: Socket | null;
     isConnected: boolean;
-    room: Room | null;
+    room: PublicRoom | null;
     error: string | null; // <--- NEW
     fingerprint: string | null; // <--- NEW
     login: (username: string) => void;
@@ -29,7 +29,7 @@ export const useSocket = () => useContext(SocketContext);
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [room, setRoom] = useState<Room | null>(null);
+    const [room, setRoom] = useState<PublicRoom | null>(null);
     const [error, setError] = useState<string | null>(null); // <--- NEW
     const [fingerprint, setFingerprint] = useState<string | null>(null); // <--- NEW
 
@@ -63,7 +63,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             setRoom(null);
         });
 
-        socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: Room) => {
+        socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: PublicRoom) => {
             console.log("🏠 Room Updated:", updatedRoom);
             setRoom(updatedRoom);
             setError(null); // Clear error on successful update

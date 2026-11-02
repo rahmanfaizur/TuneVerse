@@ -1,19 +1,27 @@
 import { Server, Socket } from "socket.io";
 import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tuneverse/shared";
-import { RoomStore } from "./state/room-store";
+import { RoomStore, toPublicRoom } from "./state/room-store";
+import { isValidPayload } from "./socket-validation";
 import { RecommendationService } from "./services/recommendation";
 import ytsr from "ytsr";
 import ytpl from "ytpl";
 
 
-const activeUsers = new Map<string, string>(); // socketId -> userId (kept from Phase 3)
 const socketToRoom = new Map<string, string>(); // socketId -> roomId (NEW: fast lookup)
 const pendingJoins = new Map<string, { roomId: string; user: any }>(); // socketId -> { roomId, user }
 const hostReassignmentTimeouts = new Map<string, NodeJS.Timeout>(); // roomId -> timeout
 
+const usernameIn = (roomId: string, socketId: string): string =>
+    RoomStore.getRoom(roomId)?.users.find(u => u.id === socketId)?.username || "Anon";
+
 export const setupSocket = (io: Server) => {
     io.on("connection", (socket: Socket) => {
         console.log(`🔌 New Connection: ${socket.id}`);
+
+        socket.use(([event, payload], next) => {
+            if (isValidPayload(event, payload)) return next();
+            console.warn(`Dropped malformed ${event} from ${socket.id}`);
+        });
 
         // --- 0. CLOCK SYNC ---
         socket.on(EVENTS.SYNC_CLOCK, (payload: { clientSendTime: number }) => {
@@ -47,7 +55,6 @@ export const setupSocket = (io: Server) => {
             if (roomName) {
                 newRoom.name = roomName;
             }
-            // @ts-ignore - Adding runtime property
             newRoom.isPersistent = !!isPersistent;
 
             // Socket.io grouping
@@ -55,7 +62,7 @@ export const setupSocket = (io: Server) => {
             socketToRoom.set(socket.id, newRoom.id);
 
             // Notify the creator IMMEDIATELY (Optimistic UI)
-            socket.emit(EVENTS.ROOM_UPDATE, newRoom);
+            socket.emit(EVENTS.ROOM_UPDATE, toPublicRoom(newRoom));
             socket.emit(EVENTS.ROOM_CREATED, { roomId: newRoom.id });
             console.log(`🏠 Room Created: ${newRoom.id} by ${username}`);
         });
@@ -77,104 +84,57 @@ export const setupSocket = (io: Server) => {
                 return;
             }
 
-            // If user is the host OR is in the allowed list, join immediately
-            // We check username because socket.id changes on refresh
-            const isHost = room.users.find(u => u.id === room.hostId)?.username === username; // Check by username if possible, but hostId is socketId. 
-            // Actually, hostId IS socketId. So on refresh, hostId won't match new socketId.
-            // But we can check if the room has no host (if we implement that) OR if the username matches the *previous* host?
-            // Simpler: Check allowedUsers. Host is added to allowedUsers on create.
-            // NEW: Check fingerprint
-            const isAllowedByFingerprint = fingerprint && room.allowedFingerprints?.includes(fingerprint);
+            const isAllowed = !!fingerprint && room.allowedFingerprints.includes(fingerprint);
 
-            if (room.allowedUsers.includes(username) || isAllowedByFingerprint) {
+            if (isAllowed) {
                 const updatedRoom = RoomStore.joinRoom(roomId, user);
+                if (!updatedRoom) return;
 
-                // If this user was the host (reconnecting), we might need to restore their host status?
-                // But RoomStore.joinRoom just adds them.
-                // If the room has a hostId that is NOT in the room (because they left), we should update it?
-                // RoomStore.reassignHost handles "next person", but maybe we want "original host"?
-                // For now, let's stick to: if allowed, join.
-
-                // If the room currently has a hostId that corresponds to a user NOT in the room (ghost host),
-                // and this user is joining, maybe they should become host?
-                // But `leaveRoom` doesn't remove hostId immediately anymore.
-                // So if host refreshes:
-                // 1. leaveRoom called (hostId stays same).
-                // 2. joinRoom called (new socketId).
-                // 3. We need to update hostId to new socketId if username matches?
-                // Let's do that here.
-
-                // Check if the current host is "missing" from users list (meaning they are disconnected)
-                // AND this joining user was the host (by username check? We don't store host username explicitly in Room, just hostId)
-                // Wait, we can check if `room.allowedUsers[0]` (creator) is this user?
-                // Or just: if room.hostId is not found in room.users, AND this user is allowed, make them host?
-                // No, that's risky.
-
-                // Better: If we have a pending host reassignment timeout for this room, CANCEL IT and make this user host.
-                console.log(`🔍 Checking host restoration for ${username} in ${roomId}. Timeout exists: ${hostReassignmentTimeouts.has(roomId)}`);
-                // NEW: Use fingerprint to precisely restore host without relying on timeouts alone
-                const isHostByFingerprint = fingerprint && fingerprint === room.hostFingerprint;
-
-                if (hostReassignmentTimeouts.has(roomId) || (isHostByFingerprint && !room.users.find(u => u.id === room.hostId))) {
-                    if (hostReassignmentTimeouts.has(roomId)) {
-                        clearTimeout(hostReassignmentTimeouts.get(roomId));
-                        hostReassignmentTimeouts.delete(roomId);
-                    }
-                    // If this is the host returning, update hostId to new socketId
-                    // We assume the person returning within grace period IS the host (or at least allowed).
-                    // But strictly, we should check if they were the host.
-                    // Since we don't store "host username", we rely on the fact that only the host triggers the timeout.
-                    // So if timeout exists, the host left.
-                    // If *anyone* joins during timeout, do we make them host?
-                    // No, only if it's the SAME user.
-                    // But we can't verify identity easily without auth.
-                    // For MVP: If timeout exists, and this user is allowed, assume it's the host returning?
-                    // Or just let them join, and if they were host, they regain control?
-                    // We need to update room.hostId to new socket.id.
-
-                    // Let's assume for now: If timeout exists, we update hostId to this new user IF they are allowed.
-                    // This is a bit loose but works for "refresh".
-                    room.hostId = user.id;
-                    console.log(`👑 Host restored for ${roomId}: ${username}`);
+                // socket.id changes on refresh, so the fingerprint is how we recognise
+                // a host coming back during the grace period.
+                const hostIsGone = !updatedRoom.users.some(u => u.id === updatedRoom.hostId);
+                if (fingerprint === updatedRoom.hostFingerprint && hostIsGone) {
+                    clearTimeout(hostReassignmentTimeouts.get(roomId));
+                    hostReassignmentTimeouts.delete(roomId);
+                    updatedRoom.hostId = user.id;
+                    console.log(`Host restored for ${roomId}: ${username}`);
                 }
 
-                if (updatedRoom) {
-                    // FAILSAFE: If this is the only user, they MUST be the host
-                    if (updatedRoom.users.length === 1) {
-                        updatedRoom.hostId = user.id;
-                        console.log(`👑 Auto-assigned host to single user: ${username}`);
-                    }
+                if (updatedRoom.users.length === 1) {
+                    updatedRoom.hostId = user.id;
+                }
 
-                    socket.join(roomId);
-                    socketToRoom.set(socket.id, roomId);
-                    socket.emit(EVENTS.ROOM_JOINED, { roomId });
-                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                socket.join(roomId);
+                socketToRoom.set(socket.id, roomId);
+                socket.emit(EVENTS.ROOM_JOINED, { roomId });
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
 
-                    // If this user is the host, send them any pending requests they might have missed
-                    if (updatedRoom.hostId === user.id) {
-                        pendingJoins.forEach((pending, pendingSocketId) => {
-                            if (pending.roomId === roomId) {
-                                socket.emit(EVENTS.JOIN_REQUEST_RECEIVED, {
-                                    roomId,
-                                    username: pending.user.username,
-                                    userId: pendingSocketId,
-                                });
-                            }
-                        });
-                    }
+                if (updatedRoom.hostId === user.id) {
+                    pendingJoins.forEach((pending, pendingSocketId) => {
+                        if (pending.roomId === roomId) {
+                            socket.emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                                roomId,
+                                username: pending.user.username,
+                                userId: pendingSocketId,
+                            });
+                        }
+                    });
                 }
                 return;
             }
 
-            // Request Approval
+            // The room page re-sends ROOM_JOIN as its state changes, so only tell
+            // the host about the first one.
+            const alreadyAsked = pendingJoins.get(socket.id)?.roomId === roomId;
             pendingJoins.set(socket.id, { roomId, user });
 
-            // Notify Host
-            io.to(room.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
-                roomId,
-                username,
-                userId: socket.id,
-            });
+            if (!alreadyAsked) {
+                io.to(room.hostId).emit(EVENTS.JOIN_REQUEST_RECEIVED, {
+                    roomId,
+                    username,
+                    userId: socket.id,
+                });
+            }
 
             // Notify User they are pending
             socket.emit(EVENTS.JOIN_PENDING, { roomId });
@@ -201,7 +161,7 @@ export const setupSocket = (io: Server) => {
 
             if (approved) {
                 const updatedRoom = RoomStore.joinRoom(roomId, pending.user);
-                RoomStore.addAllowedUser(roomId, pending.user.username, pending.user.fingerprint); // <--- Add to allowed list
+                RoomStore.addAllowedFingerprint(roomId, pending.user.fingerprint);
 
                 // Get the socket of the approved user
                 const targetSocket = io.sockets.sockets.get(userId);
@@ -212,7 +172,7 @@ export const setupSocket = (io: Server) => {
 
                     targetSocket.emit(EVENTS.ROOM_JOINED, { roomId });
                     targetSocket.emit(EVENTS.JOIN_APPROVED, { roomId }); // Explicit approval event
-                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                     console.log(`✅ Approved ${userId} for room ${roomId}`);
                 }
             } else {
@@ -236,7 +196,7 @@ export const setupSocket = (io: Server) => {
 
             if (updatedRoom) {
                 // Room still exists, notify others
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`👋 Socket ${socket.id} left room ${roomId}`);
 
                 // Host Logic
@@ -245,7 +205,7 @@ export const setupSocket = (io: Server) => {
                         // Explicit leave: Reassign immediately
                         const reassignRoom = RoomStore.reassignHost(roomId);
                         if (reassignRoom) {
-                            io.to(roomId).emit(EVENTS.ROOM_UPDATE, reassignRoom);
+                            io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(reassignRoom));
 
                             // Notify NEW host of pending requests
                             pendingJoins.forEach((pending, pendingSocketId) => {
@@ -268,7 +228,7 @@ export const setupSocket = (io: Server) => {
                                 console.log(`👑 Host grace period expired for ${roomId}. Reassigning...`);
                                 const reassignRoom = RoomStore.reassignHost(roomId);
                                 if (reassignRoom) {
-                                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, reassignRoom);
+                                    io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(reassignRoom));
 
                                     // Notify NEW host of pending requests
                                     pendingJoins.forEach((pending, pendingSocketId) => {
@@ -295,7 +255,10 @@ export const setupSocket = (io: Server) => {
         };
 
         socket.on(EVENTS.ROOM_LEAVE, () => handleLeave(true));
-        socket.on("disconnect", () => handleLeave(false));
+        socket.on("disconnect", () => {
+            pendingJoins.delete(socket.id);
+            handleLeave(false);
+        });
 
         // --- 4. PLAYER CONTROLS ---
 
@@ -311,7 +274,7 @@ export const setupSocket = (io: Server) => {
             });
 
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`▶️ Play in ${roomId} at ${payload.timestamp}s`);
             }
         });
@@ -327,7 +290,7 @@ export const setupSocket = (io: Server) => {
             });
 
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`⏸️ Pause in ${roomId} at ${payload.timestamp}s`);
             }
         });
@@ -344,7 +307,7 @@ export const setupSocket = (io: Server) => {
             });
 
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`⏩ Seek in ${roomId} to ${payload.timestamp}s`);
             }
         });
@@ -357,7 +320,7 @@ export const setupSocket = (io: Server) => {
                 id: payload.videoId,
                 title: payload.title || `Video (${payload.videoId})`,
                 thumbnail: payload.thumbnail || `https://img.youtube.com/vi/${payload.videoId}/default.jpg`,
-                addedBy: activeUsers.get(socket.id) || "Anon",
+                addedBy: usernameIn(roomId, socket.id),
                 votes: 0,
                 voters: [],
                 source: payload.source || 'youtube',
@@ -369,58 +332,23 @@ export const setupSocket = (io: Server) => {
             const updatedRoom = RoomStore.addToQueue(roomId, video);
 
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`➕ Added to queue: ${payload.videoId} (${video.source})`);
             }
         });
 
-        // Song Ended -> Play Next
-        socket.on(EVENTS.PLAYER_ENDED, () => {
+        // Every listener's player reports the end of a song, so only the first report
+        // for the track that's actually playing moves the queue on.
+        socket.on(EVENTS.PLAYER_ENDED, (payload: { videoId: string }) => {
             const roomId = socketToRoom.get(socket.id);
             if (!roomId) return;
 
             const room = RoomStore.getRoom(roomId);
-            if (!room) return;
+            if (!room || room.playback.videoId !== payload.videoId) return;
 
-            // Only allow the HOST to signal "Next Song" to prevent spam
-            // (Or let anyone do it for collaborative chaos, your choice. Let's start safe.)
-            // if (room.hostId !== activeUsers.get(socket.id)) return; 
-
-            if (room.queue.length > 0) {
-                // Shift queue: First item becomes playing
-                const nextVideo = room.queue.shift(); // Remove first item
-
-                const updatedRoom = RoomStore.updatePlayback(roomId, {
-                    status: "PLAYING",
-                    videoId: nextVideo!.id,
-                    timestamp: 0,
-                    // source: nextVideo!.source, // Remove this from playback object if it's not part of the type
-                    meta: {
-                        title: nextVideo!.title,
-                        artist: nextVideo!.artist,
-                        album: nextVideo!.album,
-                        artwork: nextVideo!.thumbnail,
-                        uri: nextVideo!.uri
-                    }
-                });
-
-                // Explicitly update the top-level playbackSource
-                if (updatedRoom) {
-                    updatedRoom.playbackSource = nextVideo!.source || 'youtube';
-                }
-
-                // Save the shifted queue
-                room.queue = room.queue; // (In-memory reference allows this, but purely explicit is better)
-
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, room);
-                console.log(`⏭️ Next track: ${nextVideo!.id} [${updatedRoom?.playbackSource}]`);
-            } else {
-                // Queue empty -> Stop
-                const updatedRoom = RoomStore.updatePlayback(roomId, {
-                    status: "IDLE", // Or stay paused
-                    timestamp: 0,
-                });
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+            const updatedRoom = RoomStore.skipTrack(roomId);
+            if (updatedRoom) {
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
             }
         });
 
@@ -433,7 +361,7 @@ export const setupSocket = (io: Server) => {
             // Host check? For now, anyone can skip
             const updatedRoom = RoomStore.skipTrack(roomId);
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`⏭️ Skipped track in ${roomId}`);
             }
         });
@@ -443,7 +371,7 @@ export const setupSocket = (io: Server) => {
             if (!roomId) return;
             const updatedRoom = RoomStore.previousTrack(roomId);
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`⏮️ Previous track in ${roomId}`);
             }
         });
@@ -453,7 +381,7 @@ export const setupSocket = (io: Server) => {
             if (!roomId) return;
             const updatedRoom = RoomStore.upvoteTrack(roomId, payload.videoId, socket.id);
             if (updatedRoom) {
-                io.to(roomId).emit(EVENTS.ROOM_UPDATE, updatedRoom);
+                io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
                 console.log(`👍 Upvoted ${payload.videoId} in ${roomId}`);
             }
         });
@@ -470,14 +398,14 @@ export const setupSocket = (io: Server) => {
                                 id: item.id,
                                 title: item.title,
                                 thumbnail: item.bestThumbnail.url || "",
-                                addedBy: activeUsers.get(socket.id) || "Anon",
+                                addedBy: usernameIn(roomId, socket.id),
                                 votes: 0,
                                 voters: [],
                             };
                             RoomStore.addToQueue(roomId, video);
                         }
                         const room = RoomStore.getRoom(roomId);
-                        if (room) io.to(roomId).emit(EVENTS.ROOM_UPDATE, room);
+                        if (room) io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(room));
                         console.log(`📜 Added playlist ${playlist.title} to ${roomId}`);
                     }
                 } catch (e) {
@@ -549,7 +477,7 @@ export const setupSocket = (io: Server) => {
 
                 // Fallback logic (if we didn't have a token, but maybe we should have? No, payload controls it)
                 if (!payload.spotifyToken) {
-                    if (room.playback && room.playback.source === 'spotify') {
+                    if (room.playbackSource === 'spotify') {
                         source = 'spotify';
                     } else if (queue.length > 0) {
                         const lastItem = queue[queue.length - 1];
@@ -609,8 +537,8 @@ export const setupSocket = (io: Server) => {
             const message = {
                 id: Math.random().toString(36).substring(2, 9),
                 userId: socket.id,
-                username: activeUsers.get(socket.id) || "Anon", // Fallback, but should be set
-                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${activeUsers.get(socket.id) || "Anon"}`, // Fallback
+                username: "Anon",
+                avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=Anon`,
                 text: payload.text,
                 timestamp: Date.now(),
             };

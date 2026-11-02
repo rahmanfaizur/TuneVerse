@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSocket } from "../../context/SocketContext";
 import { useAuth } from "../../context/AuthContext";
 import { EVENTS } from "@tuneverse/shared";
@@ -11,44 +11,20 @@ import LoadingScreen from "../../components/LoadingScreen";
 
 export default function LobbyPage() {
     const { socket, isConnected, fingerprint } = useSocket(); // <--- NEW (get fingerprint)
-    const { user, logout } = useAuth();
+    const { user, logout, isLoading } = useAuth();
     const router = useRouter();
     const [roomName, setRoomName] = useState("");
     const [roomIdInput, setRoomIdInput] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
     const [activeTab, setActiveTab] = useState<"all" | "my">("all");
 
-    const searchParams = useSearchParams();
-    const { login: authLogin } = useAuth();
     const { login: socketLogin } = useSocket();
 
-    // 1. Handle Spotify Callback (Run once on mount if params exist)
     useEffect(() => {
-        const accessToken = searchParams.get("access_token");
-        const userParam = searchParams.get("user");
-
-        if (accessToken && userParam) {
-            try {
-                const parsedUser = JSON.parse(userParam);
-                authLogin(accessToken, parsedUser);
-                socketLogin(parsedUser.username);
-
-                // Clean URL
-                router.replace("/lobby");
-            } catch (e) {
-                console.error("Failed to parse spotify callback", e);
-                toast.error("Failed to complete Spotify login");
-            }
-        }
-    }, [searchParams, authLogin, socketLogin, router]);
-
-    // 2. Auth Guard (Redirect if not logged in and not processing callback)
-    useEffect(() => {
-        const accessToken = searchParams.get("access_token");
-        if (!user && !accessToken) {
+        if (!user && !isLoading) {
             router.push("/");
         }
-    }, [user, router, searchParams]);
+    }, [user, isLoading, router]);
 
     useEffect(() => {
         if (!socket) return;
@@ -83,7 +59,7 @@ export default function LobbyPage() {
         if (!socket || !user) return;
         // Persistent by default if not a guest
         const isPersistent = !user.isGuest;
-        socket.emit(EVENTS.ROOM_CREATE, { name: roomName, isPersistent, host: user.username, fingerprint }); // <--- NEW: Send fingerprint
+        socket.emit(EVENTS.ROOM_CREATE, { roomName, isPersistent, username: user.username, fingerprint });
     };
 
     useEffect(() => {
@@ -92,7 +68,7 @@ export default function LobbyPage() {
         const handleJoinApproved = ({ roomId }: { roomId: string }) => {
             toast.success("Join request accepted! Entering room...");
             if (user) {
-                socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username });
+                socket.emit(EVENTS.ROOM_JOIN, { roomId, username: user.username, fingerprint });
             }
         };
 
@@ -107,7 +83,7 @@ export default function LobbyPage() {
             socket.off(EVENTS.JOIN_APPROVED, handleJoinApproved);
             socket.off(EVENTS.JOIN_REJECTED, handleJoinRejected);
         };
-    }, [socket, user]);
+    }, [socket, user, fingerprint]);
 
     // 3. Ensure Socket Connection
     useEffect(() => {

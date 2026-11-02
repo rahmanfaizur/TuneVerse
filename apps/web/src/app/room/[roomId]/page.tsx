@@ -39,8 +39,9 @@ export default function RoomPage() {
 
         const handleRequest = (payload: { roomId: string; username: string; userId: string }) => {
             console.log("📩 Join Request Received:", payload);
-            toast.info(`${payload.username} wants to join!`);
-            setJoinRequests((prev) => [...prev, payload]);
+            toast.info(`${payload.username} wants to join!`, { id: `join-${payload.username}` });
+            // A refresh gives them a new socket id, so match on the name.
+            setJoinRequests((prev) => [...prev.filter((req) => req.username !== payload.username), payload]);
         };
 
         const handlePending = () => {
@@ -78,14 +79,6 @@ export default function RoomPage() {
         if (approved) toast.success("Request accepted");
         else toast.info("Request rejected");
     };
-
-    // Debug Logs
-    console.log("DEBUG RENDER:", {
-        joinRequestsLen: joinRequests.length,
-        hostId: room?.hostId,
-        socketId: socket?.id,
-        isHost: room?.hostId === socket?.id
-    });
 
     if (error) {
         return (
