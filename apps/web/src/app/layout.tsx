@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { Bodoni_Moda, Jost } from "next/font/google";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { ThemeToggle } from "../components/ThemeToggle";
+import NavigationProgress from "../components/NavigationProgress";
 
 const bodoni = Bodoni_Moda({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
           <AuthProvider>
             <SpotifyProvider>
               <SocketProvider>
+                <NavigationProgress />
                 {children}
                 <ThemeToggle />
                 <Toaster

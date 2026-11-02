@@ -128,20 +128,103 @@ h6 {
 }
 
 @keyframes page-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(20px);
-    filter: blur(4px);
+    transform: translateY(10px);
   }
 
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0);
-    filter: blur(0);
   }
 }
 
 .animate-page-enter {
-  animation: page-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity, filter;
+  animation: page-enter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes masthead-rise {
+  from {
+    transform: translateY(105%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+.masthead-letter {
+  animation: masthead-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.loader-rule {
+  position: relative;
+}
+
+.loader-rule::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--signal);
+  transform-origin: left;
+  animation: loader-rule 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes loader-rule {
+  0% {
+    transform: translateX(-100%) scaleX(0.4);
+  }
+
+  100% {
+    transform: translateX(100%) scaleX(0.8);
+  }
+}
+
+.nav-progress-running {
+  animation: nav-progress 4s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+
+.nav-progress-finishing {
+  animation: nav-progress-finish 0.45s ease-out forwards;
+}
+
+@keyframes nav-progress {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(0.88);
+  }
+}
+
+@keyframes nav-progress-finish {
+  0% {
+    transform: scaleX(0.88);
+    opacity: 1;
+  }
+
+  60% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-page-enter,
+  .masthead-letter,
+  .animate-marquee,
+  .animate-spin-slow,
+  .animate-spin-reverse-slow {
+    animation: none;
+  }
 }
