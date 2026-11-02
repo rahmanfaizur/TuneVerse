@@ -1,6 +1,7 @@
 import { EVENTS } from "@tuneverse/shared";
 
-const MAX_USERNAME = 30;
+// Signup caps names at 30, but older accounts can be longer.
+const MAX_USERNAME = 64;
 const MAX_ROOM_NAME = 60;
 const MAX_QUERY = 200;
 export const MAX_CHAT_LENGTH = 500;
