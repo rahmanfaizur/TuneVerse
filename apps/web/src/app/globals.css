@@ -3,15 +3,15 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #000000;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --border: #8792a8;
-  --accent: #000000;
-  --accent-foreground: #ffffff;
-  --font-serif: var(--font-serif);
-  --font-sans: var(--font-sans);
+  --background: #f6f1e8;
+  --foreground: #17110d;
+  --muted: #ebe4d7;
+  --muted-foreground: #6d6256;
+  --border: #cfc5b4;
+  --accent: #17110d;
+  --accent-foreground: #f6f1e8;
+  --signal: #b3142e;
+  --signal-foreground: #fbf6ee;
 }
 
 @theme inline {
@@ -22,24 +22,38 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
   --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #ffffff;
-  --muted: #111827;
-  --muted-foreground: #9ca3af;
-  --border: #838d99;
-  --accent: #ffffff;
-  --accent-foreground: #000000;
+  --background: #100b0c;
+  --foreground: #f3ecdf;
+  --muted: #1e1719;
+  --muted-foreground: #a99e91;
+  --border: #3b3032;
+  --accent: #f3ecdf;
+  --accent-foreground: #100b0c;
+  --signal: #f0485f;
+  --signal-foreground: #100b0c;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: var(--signal);
+  color: var(--signal-foreground);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 h1,
