@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import ReactPlayer from "react-player/youtube";
 import SpotifyPlayer from "./SpotifyPlayer";
-import { Room, EVENTS } from "@tuneverse/shared";
+import { PublicRoom, EVENTS } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 import { SyncEngine } from "../lib/sync-engine";
 
 interface VideoPlayerProps {
-    room: Room;
+    room: PublicRoom;
     socket: Socket | null;
 }
 
@@ -117,9 +117,8 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
     };
 
     const handleEnded = () => {
-        if (!socket) return;
-        console.log("🏁 Video Ended");
-        socket.emit(EVENTS.PLAYER_ENDED);
+        if (!socket || !room.playback.videoId) return;
+        socket.emit(EVENTS.PLAYER_ENDED, { videoId: room.playback.videoId });
     };
 
     const handleSkip = () => {
@@ -184,7 +183,7 @@ export default function VideoPlayer({ room, socket }: VideoPlayerProps) {
                 ) : (
                     <>
                         <div className={room.playbackSource === 'spotify' ? 'w-full h-full' : 'hidden'}>
-                            <SpotifyPlayer room={room} />
+                            <SpotifyPlayer room={room} socket={socket} getServerTime={getServerTime} />
                         </div>
                         <div className={room.playbackSource === 'youtube' ? 'w-full h-full' : 'hidden'}>
                             <ReactPlayer

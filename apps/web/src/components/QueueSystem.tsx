@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { EVENTS, Room } from "@tuneverse/shared";
+import { EVENTS, PublicRoom } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 import { toast } from "sonner";
 
 import { useSpotify } from "../context/SpotifyContext";
 
 interface QueueSystemProps {
-    room: Room;
+    room: PublicRoom;
     socket: Socket | null;
 }
 
@@ -69,22 +69,22 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         if (source === 'youtube') {
             socket.emit(EVENTS.SEARCH_QUERY, { query: debouncedQuery });
         } else if (source === 'spotify' && spotifyConnected) {
-            // Use backend proxy for Spotify search to avoid exposing tokens if needed, 
-            // or use the token we have in context to search directly?
-            // The plan says "Spotify Routes ... GET /api/spotify/search".
-            // Let's use the backend route to keep it consistent with the plan.
             fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000'}/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}`, {
                 headers: {
                     'Authorization': `Bearer ${spotifyToken}`
                 }
             })
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error(`Search failed with ${res.status}`);
+                    return res.json();
+                })
                 .then(data => {
                     setResults(data);
                     setIsSearching(false);
                 })
                 .catch(err => {
                     console.error("Spotify search failed", err);
+                    setResults([]);
                     setIsSearching(false);
                 });
         }

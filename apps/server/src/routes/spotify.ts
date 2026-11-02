@@ -1,160 +1,113 @@
+import { randomBytes } from 'crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
+import { config } from '../config';
 import SpotifyService from '../services/spotify';
 
 const router = express.Router();
 
-/**
- * GET /api/spotify/auth
- * Redirect to Spotify OAuth
- */
+router.use(rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+}));
+
+type PendingLogin = {
+    tokens: Awaited<ReturnType<typeof SpotifyService.exchangeCode>>;
+    user: Awaited<ReturnType<typeof SpotifyService.getCurrentUser>>;
+    timer: NodeJS.Timeout;
+};
+
+// Tokens in a redirect URL end up in browser history and proxy logs. So the callback
+// hands the browser a short-lived id, and the browser swaps it for the tokens here.
+const pendingLogins = new Map<string, PendingLogin>();
+const PENDING_LOGIN_TTL_MS = 60 * 1000;
+
+const bearerToken = (header?: string) => header?.replace('Bearer ', '') || null;
+
 router.get('/auth', (req, res) => {
-    const authUrl = SpotifyService.getAuthUrl();
-    res.json({ authUrl });
+    const { state } = req.query;
+
+    // Generated and remembered by the browser, which checks it again on the way back.
+    if (typeof state !== 'string' || !/^[a-f0-9]{32}$/.test(state)) {
+        return res.status(400).json({ error: 'Invalid state' });
+    }
+
+    res.json({ authUrl: SpotifyService.getAuthUrl(state) });
 });
 
-/**
- * GET /api/spotify/callback
- * Handle OAuth callback from Spotify
- */
 router.get('/callback', async (req, res) => {
-    const { code } = req.query;
+    const { code, state } = req.query;
+    const lobbyUrl = `${config.clientUrl}/lobby`;
 
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
-    if (!code || typeof code !== 'string') {
-        return res.redirect(`${clientUrl}/lobby?error=no_code`);
+    if (typeof code !== 'string' || typeof state !== 'string') {
+        return res.redirect(`${lobbyUrl}?spotify_error=denied`);
     }
 
     try {
         const tokens = await SpotifyService.exchangeCode(code);
         const user = await SpotifyService.getCurrentUser(tokens.access_token);
 
-        // Redirect to frontend with tokens in URL (will be moved to localStorage)
-        const params = new URLSearchParams({
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_at: tokens.expires_at.toString(),
-            user: JSON.stringify(user)
-        });
+        const id = randomBytes(24).toString('hex');
+        const timer = setTimeout(() => pendingLogins.delete(id), PENDING_LOGIN_TTL_MS);
+        pendingLogins.set(id, { tokens, user, timer });
 
-        res.redirect(`${clientUrl}/lobby?${params.toString()}`);
+        const params = new URLSearchParams({ spotify_login: id, state });
+        res.redirect(`${lobbyUrl}?${params.toString()}`);
     } catch (error) {
-        console.error('OAuth callback error:', error);
-        res.redirect(`${clientUrl}/lobby?error=auth_failed`);
+        console.error('Spotify callback failed:', error);
+        res.redirect(`${lobbyUrl}?spotify_error=failed`);
     }
 });
 
-/**
- * POST /api/spotify/refresh
- * Refresh access token
- */
-router.post('/refresh', async (req, res) => {
-    const { refresh_token } = req.body;
+router.post('/session', (req, res) => {
+    const { id } = req.body ?? {};
+    const pending = typeof id === 'string' ? pendingLogins.get(id) : undefined;
 
-    if (!refresh_token) {
+    if (!pending) {
+        return res.status(404).json({ error: 'Login expired, try connecting again' });
+    }
+
+    clearTimeout(pending.timer);
+    pendingLogins.delete(id);
+    res.json({ ...pending.tokens, user: pending.user });
+});
+
+router.post('/refresh', async (req, res) => {
+    const { refresh_token } = req.body ?? {};
+
+    if (typeof refresh_token !== 'string' || !refresh_token) {
         return res.status(400).json({ error: 'refresh_token required' });
     }
 
     try {
-        const tokens = await SpotifyService.refreshToken(refresh_token);
-        res.json(tokens);
+        res.json(await SpotifyService.refreshToken(refresh_token));
     } catch (error) {
-        console.error('Token refresh error:', error);
+        console.error('Spotify token refresh failed:', error);
         res.status(401).json({ error: 'Failed to refresh token' });
     }
 });
 
-/**
- * GET /api/spotify/me
- * Get current user profile
- */
-router.get('/me', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
-    }
-
-    try {
-        const user = await SpotifyService.getCurrentUser(token);
-        res.json(user);
-    } catch (error) {
-        console.error('Get user error:', error);
-        res.status(401).json({ error: 'Invalid token' });
-    }
-});
-
-/**
- * GET /api/spotify/search
- * Search for tracks
- */
 router.get('/search', async (req, res) => {
     const { q, limit } = req.query;
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace('Bearer ', '');
+    const token = bearerToken(req.headers.authorization);
 
     if (!token) {
         return res.status(401).json({ error: 'No token provided' });
     }
 
-    if (!q || typeof q !== 'string') {
+    if (typeof q !== 'string' || !q.trim()) {
         return res.status(400).json({ error: 'query required' });
     }
 
     try {
-        const tracks = await SpotifyService.searchTracks(token, q, limit ? parseInt(limit as string) : 10);
+        const parsedLimit = typeof limit === 'string' ? parseInt(limit, 10) : NaN;
+        const tracks = await SpotifyService.searchTracks(token, q, Number.isNaN(parsedLimit) ? undefined : parsedLimit);
         res.json(tracks);
     } catch (error) {
-        console.error('Search error:', error);
-        res.status(500).json({ error: 'Search failed' });
-    }
-});
-
-/**
- * GET /api/spotify/track/:id
- * Get track details
- */
-router.get('/track/:id', async (req, res) => {
-    const { id } = req.params;
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
-    }
-
-    try {
-        const track = await SpotifyService.getTrack(token, id);
-        res.json(track);
-    } catch (error) {
-        console.error('Get track error:', error);
-        res.status(500).json({ error: 'Failed to get track' });
-    }
-});
-
-/**
- * POST /api/spotify/recommendations
- * Get AI-powered recommendations
- */
-router.post('/recommendations', async (req, res) => {
-    const { seed_tracks, limit } = req.body;
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.replace('Bearer ', '');
-
-    if (!token) {
-        return res.status(401).json({ error: 'No token provided' });
-    }
-
-    if (!seed_tracks || !Array.isArray(seed_tracks)) {
-        return res.status(400).json({ error: 'seed_tracks array required' });
-    }
-
-    try {
-        const recommendations = await SpotifyService.getRecommendations(token, seed_tracks, limit || 10);
-        res.json(recommendations);
-    } catch (error) {
-        console.error('Recommendations error:', error);
-        res.status(500).json({ error: 'Failed to get recommendations' });
+        console.error('Spotify search failed:', error);
+        res.status(502).json({ error: 'Search failed' });
     }
 });
 

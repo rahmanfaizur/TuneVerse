@@ -7,8 +7,6 @@ export interface SpotifyAuthTokens {
 export interface SpotifyUser {
     id: string;
     display_name: string;
-    email?: string;
-    product: string; // "premium" | "free"
     images?: { url: string }[];
 }
 
