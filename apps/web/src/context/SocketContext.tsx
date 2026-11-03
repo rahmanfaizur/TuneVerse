@@ -1,17 +1,19 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { EVENTS, Room } from "@tuneverse/shared"; // Import Room type
+import { toast } from "sonner";
+import { EVENTS, PublicRoom } from "@tuneverse/shared";
 
 interface SocketContextType {
     socket: Socket | null;
     isConnected: boolean;
-    room: Room | null;
+    room: PublicRoom | null;
     error: string | null; // <--- NEW
     fingerprint: string | null; // <--- NEW
     login: (username: string) => void;
     logout: () => void;
+    leaveRoom: () => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -22,6 +24,7 @@ const SocketContext = createContext<SocketContextType>({
     fingerprint: null,
     login: () => { },
     logout: () => { },
+    leaveRoom: () => { },
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -29,7 +32,7 @@ export const useSocket = () => useContext(SocketContext);
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [room, setRoom] = useState<Room | null>(null);
+    const [room, setRoom] = useState<PublicRoom | null>(null);
     const [error, setError] = useState<string | null>(null); // <--- NEW
     const [fingerprint, setFingerprint] = useState<string | null>(null); // <--- NEW
 
@@ -49,6 +52,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         const socketInstance = io(socketUrl, {
             autoConnect: false,
+            transports: ["websocket", "polling"],
         });
 
         setSocket(socketInstance);
@@ -63,8 +67,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             setRoom(null);
         });
 
-        socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: Room) => {
-            console.log("🏠 Room Updated:", updatedRoom);
+        socketInstance.on(EVENTS.ROOM_UPDATE, (updatedRoom: PublicRoom) => {
             setRoom(updatedRoom);
             setError(null); // Clear error on successful update
         });
@@ -72,6 +75,10 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socketInstance.on(EVENTS.ERROR, (payload: { message: string }) => {
             console.error("🚨 Socket Error:", payload.message);
             setError(payload.message);
+        });
+
+        socketInstance.on(EVENTS.NOTICE, (payload: { message: string }) => {
+            toast(payload.message);
         });
 
         socketInstance.on("connect_error", (err) => {
@@ -113,8 +120,15 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         setRoom(null);
     };
 
+    // Without clearing this, coming back to the same room would skip joining it again.
+    const leaveRoom = useCallback(() => {
+        socket?.emit(EVENTS.ROOM_LEAVE);
+        setRoom(null);
+        setError(null);
+    }, [socket]);
+
     return (
-        <SocketContext.Provider value={{ socket, isConnected, room, error, fingerprint, login, logout }}>
+        <SocketContext.Provider value={{ socket, isConnected, room, error, fingerprint, login, logout, leaveRoom }}>
             {children}
         </SocketContext.Provider>
     );

@@ -1,181 +1,69 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import AuthLayout from "../../components/AuthLayout";
+import Button from "../../components/Button";
 import LoadingScreen from "../../components/LoadingScreen";
+import TextField from "../../components/TextField";
 import { useAuth } from "../../context/AuthContext";
+import { useSocket } from "../../context/SocketContext";
+import { postAuth, safeCallback } from "../../lib/auth-api";
 
 function SignupForm() {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const { login } = useAuth();
+    const { login: socketLogin } = useSocket();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const callbackUrl = searchParams.get("callbackUrl") || "/lobby";
+    const callbackUrl = safeCallback(searchParams.get("callbackUrl"));
 
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError("");
-        setIsLoading(true);
+        setIsSubmitting(true);
 
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, email, password }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.error || "Signup failed");
-            }
-
+            const data = await postAuth("signup", { username: username.trim(), email, password });
             login(data.token, data.user);
-            router.push(callbackUrl); // Redirect to callbackUrl
-        } catch (err: any) {
-            setError(err.message);
-            setIsLoading(false);
+            socketLogin(data.user.username);
+            router.push(callbackUrl);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+            setIsSubmitting(false);
         }
     };
 
-    if (isLoading) return <LoadingScreen message="Creating account..." />;
-
     return (
-        <div className="flex min-h-screen w-full bg-white dark:bg-black transition-colors duration-300">
-            {/* Left: Editorial Image */}
-            <div className="hidden lg:block w-1/2 bg-gray-100 dark:bg-gray-900 relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10 z-10" />
-                {/* Placeholder for editorial image */}
-                <div className="w-full h-full bg-[url('https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?q=80&w=2069&auto=format&fit=crop')] bg-cover bg-center opacity-80 dark:opacity-60" />
-                <div className="absolute bottom-12 left-12 z-20 text-white">
-                    <h2 className="font-serif text-5xl mb-4">TuneVerse</h2>
-                    <p className="font-sans text-sm tracking-widest uppercase">Join the movement</p>
-                </div>
-            </div>
+        <AuthLayout headline={<>Pull up <em>a chair</em></>} caption="Same song, same second, everyone in the room.">
+            <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl border border-border p-6">
+                <TextField id="username" label="Username" required maxLength={30} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
+                <TextField id="email" label="Email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <TextField id="password" label="Password" type="password" required minLength={8} maxLength={72} autoComplete="new-password" hint="At least 8 characters." value={password} onChange={(e) => setPassword(e.target.value)} />
+                {error && <p role="alert" className="text-[15px] font-medium text-red-600 dark:text-red-400">{error}</p>}
+                <Button type="submit" loading={isSubmitting} loadingText="Creating your account" className="w-full">Create account</Button>
+            </form>
 
-            {/* Right: Minimalist Form */}
-            <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 md:p-12 lg:p-24">
-                <div className="w-full max-w-md space-y-12">
-
-                    <div className="text-center space-y-4">
-                        <h1 className="font-serif text-4xl text-black dark:text-white">Create Account</h1>
-                        <p className="font-sans text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                            Begin your journey
-                        </p>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        <div className="space-y-6">
-                            <div className="group">
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2 group-focus-within:text-black dark:group-focus-within:text-white transition-colors">
-                                    Username
-                                </label>
-                                <input
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                    className="w-full py-2 border-b border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none font-serif text-xl transition-colors bg-transparent text-black dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700"
-                                    placeholder="Maverick"
-                                />
-                            </div>
-
-                            <div className="group">
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2 group-focus-within:text-black dark:group-focus-within:text-white transition-colors">
-                                    Email Address
-                                </label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full py-2 border-b border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none font-serif text-xl transition-colors bg-transparent text-black dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700"
-                                    placeholder="name@example.com"
-                                />
-                            </div>
-
-                            <div className="group">
-                                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2 group-focus-within:text-black dark:group-focus-within:text-white transition-colors">
-                                    Password
-                                </label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full py-2 border-b border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none font-serif text-xl transition-colors bg-transparent text-black dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-700"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                        </div>
-
-                        {error && (
-                            <p className="text-red-500 text-xs font-mono text-center">{error}</p>
-                        )}
-
-                        <button
-                            type="submit"
-                            className="w-full bg-black dark:bg-white text-white dark:text-black py-4 text-xs font-bold uppercase tracking-[0.2em] hover:opacity-80 transition-opacity"
-                        >
-                            Create Account
-                        </button>
-                    </form>
-
-                    <div className="space-y-6 text-center">
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-100 dark:border-gray-800"></div>
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase tracking-widest">
-                                <span className="px-4 bg-white dark:bg-black text-gray-400 dark:text-gray-600">Or</span>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <Link
-                                href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-                                className="block w-full py-3 border border-black dark:border-white text-black dark:text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-colors"
-                            >
-                                Sign In
-                            </Link>
-
-                            <button
-                                onClick={async () => {
-                                    setIsLoading(true);
-                                    try {
-                                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/guest`, {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({}),
-                                        });
-                                        const data = await res.json();
-                                        if (!res.ok) throw new Error(data.error || "Guest login failed");
-                                        login(data.token, data.user);
-                                        router.push(callbackUrl); // Redirect to callbackUrl
-                                    } catch (err: any) {
-                                        setError(err.message);
-                                        setIsLoading(false);
-                                    }
-                                }}
-                                className="block w-full text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors"
-                            >
-                                Join as Guest
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
+            <p className="mt-4 text-center text-[15px] text-muted-foreground">
+                Already have one?{" "}
+                <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="font-medium text-signal underline-offset-4 hover:underline">
+                    Sign in
+                </Link>
+                {" "}or join as a guest from there.
+            </p>
+        </AuthLayout>
     );
 }
 
 export default function SignupPage() {
     return (
-        <Suspense fallback={<LoadingScreen message="Loading..." />}>
+        <Suspense fallback={<LoadingScreen />}>
             <SignupForm />
         </Suspense>
     );

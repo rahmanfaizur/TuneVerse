@@ -3,19 +3,21 @@ import { SocketProvider } from "../context/SocketContext";
 import { AuthProvider } from "../context/AuthContext";
 import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
-import { Playfair_Display, Inter } from "next/font/google";
+import { Figtree, Newsreader } from "next/font/google";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { ThemeToggle } from "../components/ThemeToggle";
+import NavigationProgress from "../components/NavigationProgress";
 
-const playfair = Playfair_Display({
+const figtree = Figtree({
   subsets: ["latin"],
-  variable: "--font-serif",
+  variable: "--font-sans",
   display: "swap",
 });
 
-const inter = Inter({
+const newsreader = Newsreader({
   subsets: ["latin"],
-  variable: "--font-sans",
+  style: ["italic"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -26,19 +28,30 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${playfair.variable} ${inter.variable} font-sans antialiased`}>
+      <body className={`${figtree.variable} ${newsreader.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
-          disableTransitionOnChange
         >
           <AuthProvider>
             <SpotifyProvider>
               <SocketProvider>
+                <NavigationProgress />
                 {children}
                 <ThemeToggle />
-                <Toaster position="top-center" richColors />
+                <Toaster
+                  position="bottom-center"
+                  toastOptions={{
+                    style: {
+                      background: "var(--foreground)",
+                      color: "var(--background)",
+                      border: "none",
+                      borderRadius: 12,
+                      fontFamily: "var(--font-sans)",
+                    },
+                  }}
+                />
               </SocketProvider>
             </SpotifyProvider>
           </AuthProvider>

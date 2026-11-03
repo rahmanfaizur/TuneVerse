@@ -1,11 +1,42 @@
-import { Room, User, Video } from "@tuneverse/shared";
+import { randomBytes } from "crypto";
+import { PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
 
 // The "Database"
 const rooms = new Map<string, Room>();
 const cleanupTimeouts = new Map<string, NodeJS.Timeout>(); // <--- Store timeouts
 
-// Helper to generate short IDs (e.g., "AF3D")
-const generateRoomId = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+// Short enough to read out loud. Skips look-alike characters (0/O, 1/I).
+const ROOM_ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+const generateRoomId = (): string => {
+    let id: string;
+    do {
+        id = Array.from(randomBytes(6), (byte) => ROOM_ID_CHARS[byte % ROOM_ID_CHARS.length]).join("");
+    } while (rooms.has(id));
+    return id;
+};
+
+export const toPublicRoom = (room: Room): PublicRoom => {
+    const { hostFingerprint, allowedFingerprints, ...rest } = room;
+    return {
+        ...rest,
+        users: room.users.map(({ fingerprint, ...user }) => user),
+    };
+};
+
+export const toRoomSummary = (room: Room): RoomSummary => ({
+    id: room.id,
+    name: room.name,
+    hostId: room.hostId,
+    users: room.users.map(({ id, username }) => ({ id, username })),
+    nowPlaying: room.playback.videoId && room.playback.meta
+        ? {
+            title: room.playback.meta.title,
+            artwork: room.playback.meta.artwork,
+            source: room.playbackSource,
+        }
+        : undefined,
+});
 
 export const RoomStore = {
 
@@ -23,11 +54,11 @@ export const RoomStore = {
             },
             queue: [], // <--- Empty queue
             messages: [], // <--- Empty chat
-            allowedUsers: [hostUser.username], // <--- Host is always allowed
             playbackSource: 'youtube',
-            spotifyUsers: {},
-            hostFingerprint: hostUser.fingerprint, // <--- Store host's fingerprint
-            allowedFingerprints: hostUser.fingerprint ? [hostUser.fingerprint] : [], // <--- Add to allowed fingerprints
+            hostUsername: hostUser.username,
+            isPersistent: false,
+            hostFingerprint: hostUser.fingerprint,
+            allowedFingerprints: hostUser.fingerprint ? [hostUser.fingerprint] : [],
         };
 
         rooms.set(roomId, newRoom);
@@ -81,8 +112,6 @@ export const RoomStore = {
 
         // If room is empty, delete it
         if (room.users.length === 0) {
-            // Check persistence (runtime property we added in socket.ts)
-            // @ts-ignore
             if (!room.isPersistent) {
                 // Schedule cleanup instead of deleting immediately
                 console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
@@ -121,15 +150,11 @@ export const RoomStore = {
         return room;
     },
 
-    addAllowedUser: (roomId: string, username: string, fingerprint?: string): Room | undefined => {
+    addAllowedFingerprint: (roomId: string, fingerprint?: string): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;
 
-        if (!room.allowedUsers.includes(username)) {
-            room.allowedUsers.push(username);
-        }
-        if (fingerprint && (!room.allowedFingerprints || !room.allowedFingerprints.includes(fingerprint))) {
-            if (!room.allowedFingerprints) room.allowedFingerprints = [];
+        if (fingerprint && !room.allowedFingerprints.includes(fingerprint)) {
             room.allowedFingerprints.push(fingerprint);
         }
         return room;
@@ -184,6 +209,14 @@ export const RoomStore = {
         return room;
     },
 
+    removeFromQueue: (roomId: string, index: number): Room | undefined => {
+        const room = rooms.get(roomId);
+        if (!room) return undefined;
+
+        room.queue.splice(index, 1);
+        return room;
+    },
+
     skipTrack: (roomId: string): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;
@@ -195,8 +228,15 @@ export const RoomStore = {
                 videoId: nextVideo!.id,
                 timestamp: 0,
                 lastUpdated: Date.now(),
+                meta: {
+                    title: nextVideo!.title,
+                    artist: nextVideo!.artist,
+                    album: nextVideo!.album,
+                    artwork: nextVideo!.thumbnail,
+                    uri: nextVideo!.uri,
+                },
             };
-            room.playbackSource = nextVideo!.source || 'youtube'; // <--- Set source
+            room.playbackSource = nextVideo!.source || 'youtube';
         } else {
             room.playback = {
                 status: "IDLE",

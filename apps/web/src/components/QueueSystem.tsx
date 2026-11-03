@@ -1,387 +1,163 @@
-import { useState, useEffect, useRef } from "react";
-import { EVENTS, Room } from "@tuneverse/shared";
-import { Socket } from "socket.io-client";
+"use client";
 
+import { useEffect, useState } from "react";
+import { EVENTS, PublicRoom } from "@tuneverse/shared";
+import { Socket } from "socket.io-client";
 import { useSpotify } from "../context/SpotifyContext";
+import Spinner from "./Spinner";
+import { MusicResult, SOURCE_NAMES, addToQueue } from "./room/music";
+
+const MOODS = ["Chill", "Party", "Focus", "Energetic", "Late night"];
 
 interface QueueSystemProps {
-    room: Room;
+    room: PublicRoom;
     socket: Socket | null;
 }
 
-interface SearchResult {
-    id: string;
-    title: string;
-    thumbnail: string;
-    channelTitle: string;
-}
-
-// Simple debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [value, delay]);
-    return debouncedValue;
-}
-
 export default function QueueSystem({ room, socket }: QueueSystemProps) {
-    const [query, setQuery] = useState("");
-    const [results, setResults] = useState<SearchResult[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [recommendations, setRecommendations] = useState<SearchResult[]>([]);
-    const [isLoadingRecs, setIsLoadingRecs] = useState(false);
-    const [showRecs, setShowRecs] = useState(false);
-    const [source, setSource] = useState<'youtube' | 'spotify'>('youtube');
-    const { spotifyToken, isConnected: spotifyConnected } = useSpotify();
-    const debouncedQuery = useDebounce(query, 500);
-    const wrapperRef = useRef<HTMLDivElement>(null);
+    const { spotifyToken } = useSpotify();
+    const [suggestions, setSuggestions] = useState<MusicResult[]>([]);
+    const [isSuggesting, setIsSuggesting] = useState(false);
+    const [showMoods, setShowMoods] = useState(false);
+    const [customMood, setCustomMood] = useState("");
 
-    const queue = room.queue || [];
+    const username = room.users.find((u) => u.id === socket?.id)?.username;
+    const isHost = room.hostId === socket?.id;
 
-    // Handle outside click to close dropdown
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Search Effect
-    useEffect(() => {
-        if (!debouncedQuery.trim() || !socket) {
-            setResults([]);
-            return;
-        }
-
-        setIsSearching(true);
-
-        if (source === 'youtube') {
-            socket.emit(EVENTS.SEARCH_QUERY, { query: debouncedQuery });
-        } else if (source === 'spotify' && spotifyConnected) {
-            // Use backend proxy for Spotify search to avoid exposing tokens if needed, 
-            // or use the token we have in context to search directly?
-            // The plan says "Spotify Routes ... GET /api/spotify/search".
-            // Let's use the backend route to keep it consistent with the plan.
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000'}/api/spotify/search?q=${encodeURIComponent(debouncedQuery)}`, {
-                headers: {
-                    'Authorization': `Bearer ${spotifyToken}`
-                }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    setResults(data);
-                    setIsSearching(false);
-                })
-                .catch(err => {
-                    console.error("Spotify search failed", err);
-                    setIsSearching(false);
-                });
-        }
-
-        setShowDropdown(true);
-    }, [debouncedQuery, socket, source, spotifyConnected, spotifyToken]);
-
-    // Listen for results
     useEffect(() => {
         if (!socket) return;
 
-        const handleResults = (data: SearchResult[]) => {
-            setResults(data);
-            setIsSearching(false);
+        const handleSuggestions = (data: MusicResult[]) => {
+            setSuggestions(data);
+            setIsSuggesting(false);
         };
-
-        const handleRecommendations = (data: SearchResult[]) => {
-            setRecommendations(data);
-            setIsLoadingRecs(false);
-            setShowRecs(true);
-        };
-
-
-
-        const handleError = (payload: { message: string }) => {
-            setIsLoadingRecs(false);
-            // Optional: Show toast here if not handled globally, 
-            // but SocketContext logs it. We just need to stop loading.
-            // Actually, let's show a specific alert for better UX
-            if (payload.message.includes("cooling down")) {
-                alert(payload.message);
-            }
-        };
-
-        socket.on(EVENTS.SEARCH_RESULTS, handleResults);
-        socket.on(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
-        socket.on(EVENTS.ERROR, handleError);
+        socket.on(EVENTS.RECOMMENDATIONS_RESULTS, handleSuggestions);
         return () => {
-            socket.off(EVENTS.SEARCH_RESULTS, handleResults);
-            socket.off(EVENTS.RECOMMENDATIONS_RESULTS, handleRecommendations);
-            socket.off(EVENTS.ERROR, handleError);
+            socket.off(EVENTS.RECOMMENDATIONS_RESULTS, handleSuggestions);
         };
     }, [socket]);
 
-    const handleAdd = (video: SearchResult) => {
-        if (!socket) return;
-        // If source is Spotify, we need to send different payload or handle it on backend
-        // The backend queue item has `source` field.
-        // We should probably emit a generic ADD event and let backend handle, 
-        // BUT the current QUEUE_ADD event expects `videoId`.
-        // We need to update the payload to include source.
-        // Let's check `packages/shared/src/types.ts` again.
-        // It says `AddToQueuePayload` has `videoId` and `title`.
-        // We might need to update that or overload `videoId` with spotify URI?
-        // Actually, let's send `source` in the payload if possible, or just send the ID and let backend figure it out?
-        // Backend `addToQueue` takes a `Video` object.
-        // Wait, `QUEUE_ADD` event handler in backend probably constructs the video object.
-        // Let's assume we need to send source.
-
-        socket.emit(EVENTS.QUEUE_ADD, {
-            videoId: video.id,
-            title: video.title,
-            thumbnail: video.thumbnail,
-            source: (video as any).source || source, // Use video source if available (recommendations), else toggle state
-            uri: (video as any).uri, // Spotify URI
-            artist: (video as any).artist,
-            album: (video as any).album
-        });
-        setQuery("");
-        setResults([]);
-        setShowDropdown(false);
-    };
-
-    const handleDelete = (index: number) => {
-        if (!socket) return;
-        socket.emit(EVENTS.QUEUE_REMOVE, { roomId: room.id, index });
-    };
-
-    const [showMoodSelector, setShowMoodSelector] = useState(false);
-    const [customMood, setCustomMood] = useState("");
-
-    const MOODS = ["Chill", "Party", "Focus", "Energetic", "Late Night"];
-
-    const handleGetRecommendations = (mood?: string) => {
-        if (!socket || isLoadingRecs) return;
-        setIsLoadingRecs(true);
-        setShowRecs(false);
-        setShowMoodSelector(false);
+    const askForSuggestions = (mood: string) => {
+        if (!socket || isSuggesting) return;
+        setIsSuggesting(true);
+        setShowMoods(false);
+        setSuggestions([]);
         socket.emit(EVENTS.RECOMMENDATIONS_REQUEST, { spotifyToken, mood });
     };
 
     return (
-        <div className="flex flex-col h-full relative" ref={wrapperRef}>
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="font-serif italic text-lg text-black dark:text-white">Queue</h3>
-                <div className="relative">
-                    <button
-                        onClick={() => setShowMoodSelector(!showMoodSelector)}
-                        disabled={isLoadingRecs}
-                        className="text-[9px] uppercase tracking-widest px-3 py-1.5 border border-black dark:border-white text-black dark:text-white hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isLoadingRecs ? "Analyzing..." : "🤖 Discover"}
-                    </button>
-
-                    {/* Mood Selector Popover */}
-                    {showMoodSelector && (
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-black border border-black dark:border-white shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-200">
-                            <p className="text-[9px] uppercase tracking-widest text-gray-500 mb-2 px-1">Select Vibe</p>
-                            <div className="grid grid-cols-1 gap-1">
-                                {MOODS.map(mood => (
-                                    <button
-                                        key={mood}
-                                        onClick={() => handleGetRecommendations(mood)}
-                                        className="text-left px-2 py-1.5 text-xs font-serif hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors"
-                                    >
-                                        {mood}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                                <input
-                                    type="text"
-                                    placeholder="Custom..."
-                                    className="w-full px-2 py-1 text-xs bg-transparent border border-gray-200 dark:border-gray-800 focus:border-black dark:focus:border-white outline-none transition-colors"
-                                    value={customMood}
-                                    onChange={(e) => setCustomMood(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && customMood.trim()) {
-                                            handleGetRecommendations(customMood);
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* AI Recommendations Panel */}
-            {showRecs && recommendations.length > 0 && (
-                <div className="mb-4 border border-black dark:border-white p-3 bg-gray-50 dark:bg-gray-900/50">
-                    <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-400">
-                            🎵 AI Recommended ({recommendations.length})
-                        </p>
-                        <button
-                            onClick={() => setShowRecs(false)}
-                            className="text-[9px] uppercase tracking-widest text-gray-500 hover:text-black dark:hover:text-white"
-                        >
-                            Close
-                        </button>
-                    </div>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {recommendations.map((video) => (
-                            <button
-                                key={video.id}
-                                onClick={() => {
-                                    handleAdd(video);
-                                    // Remove from recommendations after adding
-                                    setRecommendations(prev => prev.filter(v => v.id !== video.id));
-                                }}
-                                className="w-full text-left p-2 hover:bg-white dark:hover:bg-gray-800 flex gap-2 items-center group transition-colors border-b border-gray-200 dark:border-gray-700 last:border-0"
-                            >
-                                <img
-                                    src={video.thumbnail}
-                                    alt={video.title}
-                                    className="w-12 h-7 object-cover grayscale group-hover:grayscale-0 transition-all"
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-serif text-xs truncate text-black dark:text-white">
-                                        {video.title}
-                                    </p>
-                                    <p className="text-[8px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                        {video.channelTitle}
-                                    </p>
-                                </div>
-                                <span className="text-[9px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
-                                    +
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Source Toggle */}
-            <div className="flex gap-4 mb-2 z-20 relative">
-                <button
-                    onClick={() => setSource('youtube')}
-                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'youtube' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
-                >
-                    YouTube
-                </button>
-                <button
-                    onClick={() => setSource('spotify')}
-                    className={`text-[9px] font-bold uppercase tracking-widest pb-1 border-b transition-colors ${source === 'spotify' ? 'border-black dark:border-white text-black dark:text-white' : 'border-transparent text-gray-400 dark:text-gray-600 hover:text-black dark:hover:text-white'}`}
-                >
-                    Spotify
-                </button>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative mb-6 z-20">
-                <input
-                    type="text"
-                    placeholder={source === 'spotify' ? "SEARCH SPOTIFY" : "SEARCH YOUTUBE"}
-                    className="w-full py-2 bg-transparent border-b border-black dark:border-white outline-none font-sans text-xs uppercase tracking-widest placeholder:text-gray-400 dark:placeholder:text-gray-500 text-black dark:text-white focus:border-b-2 transition-all"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onFocus={() => {
-                        if (results.length > 0) setShowDropdown(true);
-                    }}
-                />
-                {isSearching && (
-                    <div className="absolute right-0 top-2">
-                        <div className="w-3 h-3 border-2 border-black dark:border-white border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                )}
-
-                {/* Dropdown Results */}
-                {showDropdown && results.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-black border border-black dark:border-white shadow-xl max-h-80 overflow-y-auto">
-                        {results.map((video) => (
-                            <button
-                                key={video.id}
-                                onClick={() => handleAdd(video)}
-                                className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-900 flex gap-3 items-center group transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0"
-                            >
-                                <img
-                                    src={video.thumbnail}
-                                    alt={video.title}
-                                    className="w-16 h-9 object-cover grayscale group-hover:grayscale-0 transition-all"
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-serif text-sm truncate text-black dark:text-white group-hover:italic">
-                                        {video.title}
-                                    </p>
-                                    <p className="text-[9px] uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                        {video.channelTitle}
-                                    </p>
-                                </div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition text-black dark:text-white">
-                                    Add
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Queue List */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4 z-10">
-                {queue.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400 dark:text-gray-600">
-                        <p className="font-serif italic text-sm">The queue is empty.</p>
-                        <p className="text-[10px] font-sans uppercase tracking-widest mt-1">Search to add a vibe.</p>
-                    </div>
+        <div className="flex h-full flex-col">
+            <div className="flex-1 overflow-y-auto">
+                {room.queue.length === 0 ? (
+                    <p className="p-8 text-center text-muted-foreground">
+                        Queue&apos;s empty. Add a song and it&apos;ll show up here.
+                    </p>
                 ) : (
-                    queue.map((video, index) => (
-                        <div key={`${video.id}-${index}`} className="group flex gap-3 items-start">
-                            <div className="w-6 text-[10px] font-mono text-gray-400 dark:text-gray-600 pt-1">
-                                {(index + 1).toString().padStart(2, '0')}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-serif text-sm leading-tight truncate text-black dark:text-white group-hover:underline decoration-1 underline-offset-2">
-                                    {video.title}
-                                </p>
-                                <p className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1">
-                                    Added by {video.addedBy}
-                                </p>
-                            </div>
-                            {/* Delete button (only for host or adder) */}
-                            {(room.hostId === socket?.id || video.addedBy === socket?.id) && (
-                                <button
-                                    onClick={() => handleDelete(index)}
-                                    className="opacity-0 group-hover:opacity-100 text-[10px] uppercase tracking-widest text-red-500 hover:text-red-600 transition"
-                                >
-                                    Remove
-                                </button>
-                            )}
+                    <ol>
+                        {room.queue.map((track, index) => {
+                            const hasVoted = !!socket && track.voters?.includes(socket.id ?? "");
+                            return (
+                                <li key={`${track.id}-${index}`} className="queue-row group flex items-center gap-3 border-b border-border px-4 py-3">
+                                    <span className="w-5 shrink-0 text-sm font-medium text-muted-foreground">{index + 1}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-[15px]">{track.title}</p>
+                                        <p className="truncate text-xs text-muted-foreground">
+                                            {SOURCE_NAMES[track.source ?? "youtube"]} · added by {track.addedBy}
+                                        </p>
+                                    </div>
+                                    {(isHost || track.addedBy === username) && (
+                                        <button
+                                            onClick={() => socket?.emit(EVENTS.QUEUE_REMOVE, { index })}
+                                            className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 transition-[opacity,color] hover:text-signal md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+                                        >
+                                            Remove
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
+                                        aria-label={`Vote for ${track.title}, ${track.votes} votes so far`}
+                                        aria-pressed={hasVoted}
+                                        className={`flex shrink-0 flex-col items-center text-xs leading-none transition-colors ${hasVoted ? "text-signal" : "text-muted-foreground hover:text-foreground"}`}
+                                    >
+                                        <svg viewBox="0 0 12 8" className="mb-1 h-2 w-3" fill="currentColor" aria-hidden="true"><path d="M6 0l6 8H0z" /></svg>
+                                        {track.votes || 0}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ol>
+                )}
 
-                            {/* Upvote Button */}
-                            <div className="flex flex-col items-center">
-                                <button
-                                    onClick={() => {
-                                        if (!socket) return;
-                                        socket.emit(EVENTS.QUEUE_UPVOTE, { videoId: video.id });
-                                    }}
-                                    className={`text-xs hover:scale-110 transition ${video.voters?.includes(socket?.id || "") ? "text-blue-500" : "text-gray-400 dark:text-gray-600"}`}
-                                >
-                                    👍
-                                </button>
-                                <span className="text-[9px] font-mono text-gray-400">{video.votes || 0}</span>
-                            </div>
+                {suggestions.length > 0 && (
+                    <div className="dropdown-enter border-b border-border bg-muted p-4">
+                        <div className="flex items-baseline justify-between">
+                            <h3 className="font-semibold tracking-tight">You might like</h3>
+                            <button onClick={() => setSuggestions([])} className="text-xs underline underline-offset-2">Close</button>
                         </div>
-                    ))
+                        <ul className="mt-2">
+                            {suggestions.map((item) => (
+                                <li key={item.id}>
+                                    <button
+                                        onClick={() => {
+                                            if (socket) addToQueue(socket, item, item.source ?? "youtube");
+                                            setSuggestions((prev) => prev.filter((s) => s.id !== item.id));
+                                        }}
+                                        className="group flex w-full items-center gap-3 py-2 text-left"
+                                    >
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm group-hover:underline">{item.title}</span>
+                                            <span className="block truncate text-xs text-muted-foreground">{item.artist}</span>
+                                        </span>
+                                        <span className="shrink-0 text-xs text-signal">Add</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
             </div>
-        </div >
+
+            <div className="relative border-t border-border p-4">
+                {showMoods && (
+                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 rounded-2xl border border-border bg-background p-3 shadow-2xl">
+                        <div className="flex flex-wrap gap-2">
+                            {MOODS.map((mood) => (
+                                <button
+                                    key={mood}
+                                    onClick={() => askForSuggestions(mood)}
+                                    className="rounded-full bg-muted px-3 py-1.5 text-sm transition-opacity hover:opacity-75"
+                                >
+                                    {mood}
+                                </button>
+                            ))}
+                        </div>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (customMood.trim()) askForSuggestions(customMood.trim());
+                            }}
+                        >
+                            <input
+                                value={customMood}
+                                maxLength={100}
+                                onChange={(e) => setCustomMood(e.target.value)}
+                                placeholder="Or describe a mood, then press enter"
+                                aria-label="Describe a mood"
+                                className="field mt-3 !py-2 text-sm"
+                            />
+                        </form>
+                    </div>
+                )}
+                <button
+                    onClick={() => setShowMoods((open) => !open)}
+                    disabled={isSuggesting}
+                    aria-expanded={showMoods}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-signal underline-offset-4 enabled:hover:underline"
+                >
+                    {isSuggesting && <Spinner />}
+                    {isSuggesting ? "Finding songs for you" : "Suggest songs"}
+                </button>
+            </div>
+        </div>
     );
 }

@@ -1,17 +1,25 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import SpotifyWebApi from "spotify-web-api-js";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
+import { toast } from "sonner";
 
-// Initialize the Spotify Web API wrapper
-const spotifyApi = new SpotifyWebApi();
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+
+const STORAGE = {
+    accessToken: "spotify_access_token",
+    refreshToken: "spotify_refresh_token",
+    expiresAt: "spotify_expires_at",
+    user: "spotify_user",
+};
+const OAUTH_STATE_KEY = "spotify_oauth_state";
+const RETURN_TO_KEY = "spotify_return_to";
+
+// Refresh a bit early so a track starting right at expiry doesn't fail.
+const REFRESH_MARGIN_MS = 60 * 1000;
 
 interface SpotifyUser {
     id: string;
     display_name: string;
-    email?: string;
-    product: string;
     images?: { url: string }[];
 }
 
@@ -25,172 +33,276 @@ interface SpotifyContextType {
     player: Spotify.Player | null;
     deviceId: string | null;
     playTrack: (uri: string, positionMs?: number) => Promise<void>;
+    isConnecting: boolean;
+    needsPremium: boolean;
 }
 
 const SpotifyContext = createContext<SpotifyContextType | undefined>(undefined);
 
+const randomHex = (bytes: number) =>
+    Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
 export function SpotifyProvider({ children }: { children: ReactNode }) {
-    // ... existing state ...
     const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
     const [spotifyUser, setSpotifyUser] = useState<SpotifyUser | null>(null);
     const [sdkReady, setSdkReady] = useState(false);
     const [player, setPlayer] = useState<Spotify.Player | null>(null);
     const [deviceId, setDeviceId] = useState<string | null>(null);
-    const router = useRouter();
-    const searchParams = useSearchParams();
+    const [expiresAt, setExpiresAt] = useState<number | null>(null);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [needsPremium, setNeedsPremium] = useState(false);
 
-    // ... existing useEffects ...
+    // The SDK holds on to getOAuthToken for its whole life, so it reads from a ref.
+    const tokenRef = useRef<string | null>(null);
+    const isConnected = !!spotifyToken;
 
-    const playTrack = useCallback(async (uri: string, positionMs: number = 0) => {
-        if (!spotifyToken || !deviceId) return;
+    const saveTokens = useCallback((accessToken: string, tokenExpiresAt: number, refreshToken?: string) => {
+        localStorage.setItem(STORAGE.accessToken, accessToken);
+        localStorage.setItem(STORAGE.expiresAt, String(tokenExpiresAt));
+        if (refreshToken) localStorage.setItem(STORAGE.refreshToken, refreshToken);
 
-        try {
-            await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ uris: [uri], position_ms: positionMs }),
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${spotifyToken}`
-                },
-            });
-        } catch (e) {
-            console.error("Failed to play track", e);
-        }
-    }, [spotifyToken, deviceId]);
-
-    // ... existing connect/disconnect ...
-
-
-    useEffect(() => {
-        // Check URL params first
-        const accessToken = searchParams.get("access_token");
-        const refreshToken = searchParams.get("refresh_token");
-        const expiresAt = searchParams.get("expires_at");
-        const userParam = searchParams.get("user");
-
-        if (accessToken && refreshToken && expiresAt && userParam) {
-            // Save to localStorage
-            localStorage.setItem("spotify_access_token", accessToken);
-            localStorage.setItem("spotify_refresh_token", refreshToken);
-            localStorage.setItem("spotify_expires_at", expiresAt);
-            localStorage.setItem("spotify_user", userParam);
-
-            setSpotifyToken(accessToken);
-            try {
-                setSpotifyUser(JSON.parse(userParam));
-            } catch (e) {
-                console.error("Failed to parse Spotify user", e);
-            }
-
-            // Clean URL
-            router.replace("/lobby");
-        } else {
-            // Check localStorage
-            const storedToken = localStorage.getItem("spotify_access_token");
-            const storedUser = localStorage.getItem("spotify_user");
-
-            if (storedToken) {
-                setSpotifyToken(storedToken);
-                if (storedUser) {
-                    try {
-                        setSpotifyUser(JSON.parse(storedUser));
-                    } catch (e) {
-                        console.error("Failed to parse stored Spotify user", e);
-                    }
-                }
-            }
-        }
-    }, [searchParams, router]);
-
-    // 2. Initialize Web Playback SDK
-    useEffect(() => {
-        if (!spotifyToken) return;
-
-        // Load the script
-        const script = document.createElement("script");
-        script.src = "https://sdk.scdn.co/spotify-player.js";
-        script.async = true;
-        document.body.appendChild(script);
-
-        window.onSpotifyWebPlaybackSDKReady = () => {
-            const player = new window.Spotify.Player({
-                name: 'TuneVerse Web Player',
-                getOAuthToken: cb => { cb(spotifyToken); },
-                volume: 0.5
-            });
-
-            player.addListener('ready', ({ device_id }) => {
-                console.log('Ready with Device ID', device_id);
-                setDeviceId(device_id);
-                setSdkReady(true);
-            });
-
-            player.addListener('not_ready', ({ device_id }) => {
-                console.log('Device ID has gone offline', device_id);
-                setSdkReady(false);
-            });
-
-            player.addListener('initialization_error', ({ message }) => {
-                console.error(message);
-            });
-
-            player.addListener('authentication_error', ({ message }) => {
-                console.error(message);
-            });
-
-            player.addListener('account_error', ({ message }) => {
-                console.error(message);
-            });
-
-            player.connect();
-            setPlayer(player);
-        };
-
-        return () => {
-            // Cleanup if needed
-            if (player) {
-                player.disconnect();
-            }
-        };
-    }, [spotifyToken]);
-
-    const connectSpotify = useCallback(() => {
-        // Redirect to backend auth route
-        // We need to get the URL from the backend first or just hardcode/env it
-        // Since we have a route for it: GET /api/spotify/auth
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000'}/api/spotify/auth`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.authUrl) {
-                    window.location.href = data.authUrl;
-                }
-            })
-            .catch(err => console.error("Failed to get auth URL", err));
+        tokenRef.current = accessToken;
+        setSpotifyToken(accessToken);
+        setExpiresAt(tokenExpiresAt);
     }, []);
 
     const disconnectSpotify = useCallback(() => {
-        localStorage.removeItem("spotify_access_token");
-        localStorage.removeItem("spotify_refresh_token");
-        localStorage.removeItem("spotify_expires_at");
-        localStorage.removeItem("spotify_user");
+        Object.values(STORAGE).forEach((key) => localStorage.removeItem(key));
+        tokenRef.current = null;
         setSpotifyToken(null);
         setSpotifyUser(null);
-        setPlayer(null);
-        setSdkReady(false);
-        setDeviceId(null);
+        setExpiresAt(null);
+        setNeedsPremium(false);
+    }, []);
+
+    const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+        const refreshToken = localStorage.getItem(STORAGE.refreshToken);
+        if (!refreshToken) {
+            disconnectSpotify();
+            return null;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/api/spotify/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+
+            if (res.status === 401) {
+                toast.error("Your Spotify login expired. Connect again to keep listening.");
+                disconnectSpotify();
+                return null;
+            }
+            if (!res.ok) return tokenRef.current;
+
+            const data = await res.json();
+            saveTokens(data.access_token, data.expires_at, data.refresh_token);
+            return data.access_token;
+        } catch (e) {
+            // Probably just offline, so keep the session and let the next attempt retry.
+            console.error("Spotify token refresh failed", e);
+            return tokenRef.current;
+        }
+    }, [disconnectSpotify, saveTokens]);
+
+    // Finish a login if we've just come back from Spotify, otherwise restore the saved one.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const loginId = params.get("spotify_login");
+        const returnedState = params.get("state");
+        const loginError = params.get("spotify_error");
+
+        if (loginId || loginError) {
+            window.history.replaceState(null, "", window.location.pathname);
+        }
+
+        if (loginError) {
+            toast.error(
+                loginError === "denied"
+                    ? "Spotify connection cancelled."
+                    : "Couldn't connect Spotify. TuneVerse can only connect approved accounts for now."
+            );
+        }
+
+        if (loginId) {
+            const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY);
+            sessionStorage.removeItem(OAUTH_STATE_KEY);
+
+            if (!expectedState || expectedState !== returnedState) {
+                toast.error("Couldn't verify the Spotify login. Please try again.");
+                return;
+            }
+
+            fetch(`${API_URL}/api/spotify/session`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: loginId }),
+            })
+                .then((res) => {
+                    if (!res.ok) throw new Error(`Session request failed with ${res.status}`);
+                    return res.json();
+                })
+                .then((data) => {
+                    saveTokens(data.access_token, data.expires_at, data.refresh_token);
+                    localStorage.setItem(STORAGE.user, JSON.stringify(data.user));
+                    setSpotifyUser(data.user);
+
+                    // People usually connect from inside a room, so put them back there.
+                    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+                    sessionStorage.removeItem(RETURN_TO_KEY);
+                    if (returnTo && returnTo !== window.location.pathname) window.location.assign(returnTo);
+                })
+                .catch((e) => {
+                    console.error("Spotify login failed", e);
+                    toast.error("Couldn't finish connecting Spotify. Please try again.");
+                });
+            return;
+        }
+
+        const storedToken = localStorage.getItem(STORAGE.accessToken);
+        if (!storedToken) return;
+
+        tokenRef.current = storedToken;
+        setSpotifyToken(storedToken);
+        setExpiresAt(Number(localStorage.getItem(STORAGE.expiresAt)) || 0);
+
+        const storedUser = localStorage.getItem(STORAGE.user);
+        if (storedUser) {
+            try {
+                setSpotifyUser(JSON.parse(storedUser));
+            } catch {
+                localStorage.removeItem(STORAGE.user);
+            }
+        }
+    }, [saveTokens]);
+
+    // Keep the token fresh for as long as the tab is open.
+    useEffect(() => {
+        if (expiresAt === null) return;
+
+        const delay = Math.max(expiresAt - Date.now() - REFRESH_MARGIN_MS, 0);
+        const timer = setTimeout(refreshAccessToken, delay);
+        return () => clearTimeout(timer);
+    }, [expiresAt, refreshAccessToken]);
+
+    // Depends on isConnected and not the token, otherwise every refresh rebuilds the player.
+    useEffect(() => {
+        if (!isConnected) return;
+
+        let instance: Spotify.Player | null = null;
+        let cancelled = false;
+
+        const startPlayer = () => {
+            if (cancelled) return;
+
+            instance = new window.Spotify.Player({
+                name: "TuneVerse Web Player",
+                getOAuthToken: (cb) => {
+                    const expires = Number(localStorage.getItem(STORAGE.expiresAt)) || 0;
+                    if (Date.now() < expires - REFRESH_MARGIN_MS && tokenRef.current) {
+                        cb(tokenRef.current);
+                        return;
+                    }
+                    refreshAccessToken().then((token) => {
+                        if (token) cb(token);
+                    });
+                },
+                volume: 0.5,
+            });
+
+            instance.addListener("ready", ({ device_id }) => {
+                setDeviceId(device_id);
+                setSdkReady(true);
+            });
+            instance.addListener("not_ready", () => setSdkReady(false));
+            instance.addListener("initialization_error", ({ message }) => {
+                console.error("Spotify player failed to start:", message);
+                toast.error("Spotify playback isn't supported in this browser.");
+            });
+            instance.addListener("authentication_error", ({ message }) => {
+                console.error("Spotify auth error:", message);
+                toast.error("Spotify rejected this login. Try reconnecting.");
+            });
+            instance.addListener("account_error", () => setNeedsPremium(true));
+
+            instance.connect();
+            setPlayer(instance);
+        };
+
+        if (window.Spotify) {
+            startPlayer();
+        } else {
+            window.onSpotifyWebPlaybackSDKReady = startPlayer;
+            if (!document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]')) {
+                const script = document.createElement("script");
+                script.src = "https://sdk.scdn.co/spotify-player.js";
+                script.async = true;
+                document.body.appendChild(script);
+            }
+        }
+
+        return () => {
+            cancelled = true;
+            instance?.disconnect();
+            setPlayer(null);
+            setDeviceId(null);
+            setSdkReady(false);
+        };
+    }, [isConnected, refreshAccessToken]);
+
+    const playTrack = useCallback(async (uri: string, positionMs: number = 0) => {
+        if (!tokenRef.current || !deviceId) return;
+
+        try {
+            const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+                method: "PUT",
+                body: JSON.stringify({ uris: [uri], position_ms: Math.round(positionMs) }),
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${tokenRef.current}`,
+                },
+            });
+            if (res.status === 403) setNeedsPremium(true);
+        } catch (e) {
+            console.error("Failed to play track", e);
+        }
+    }, [deviceId]);
+
+    const connectSpotify = useCallback(() => {
+        const state = randomHex(16);
+        sessionStorage.setItem(OAUTH_STATE_KEY, state);
+        sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname);
+        setIsConnecting(true);
+
+        fetch(`${API_URL}/api/spotify/auth?state=${state}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.authUrl) throw new Error("No auth URL in response");
+                window.location.href = data.authUrl;
+            })
+            .catch((err) => {
+                console.error("Failed to get Spotify auth URL", err);
+                setIsConnecting(false);
+                toast.error("Couldn't reach Spotify. Please try again.");
+            });
     }, []);
 
     return (
         <SpotifyContext.Provider value={{
             spotifyToken,
             spotifyUser,
-            isConnected: !!spotifyToken,
+            isConnected,
             connectSpotify,
             disconnectSpotify,
             sdkReady,
             player,
             deviceId,
-            playTrack
+            playTrack,
+            isConnecting,
+            needsPremium,
         }}>
             {children}
         </SpotifyContext.Provider>

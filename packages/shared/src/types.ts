@@ -47,11 +47,31 @@ export interface Room {
     playback: PlaybackState; // <--- NEW
     queue: Video[]; // <--- NEW: List of upcoming songs (mixed sources)
     messages: Message[]; // <--- NEW: Chat history
-    allowedUsers: string[]; // <--- NEW: List of usernames allowed to join without approval
     playbackSource: 'youtube' | 'spotify'; // <--- NEW: Default playback source for room
-    spotifyUsers: Record<string, { accessToken: string; expiresAt: number }>; // <--- NEW: Track Spotify auth per user
-    hostFingerprint?: string; // <--- NEW: Fingerprint of the creating host
-    allowedFingerprints?: string[]; // <--- NEW: Fingerprints allowed to join
+    hostUsername: string; // Whoever created the room, kept even if host passes to someone else
+    isPersistent: boolean;
+    hostFingerprint?: string;
+    allowedFingerprints: string[];
+}
+
+// What clients are allowed to see. Fingerprints work like a password for getting
+// back into a room, so they never leave the server.
+export type PublicUser = Omit<User, "fingerprint">;
+
+export interface PublicRoom extends Omit<Room, "users" | "hostFingerprint" | "allowedFingerprints"> {
+    users: PublicUser[];
+}
+
+export interface RoomSummary {
+    id: string;
+    name?: string;
+    hostId: string;
+    users: Pick<User, "id" | "username">[];
+    nowPlaying?: {
+        title: string;
+        artwork?: string;
+        source: 'youtube' | 'spotify';
+    };
 }
 
 // 5. Chat Message

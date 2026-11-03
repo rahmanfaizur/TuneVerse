@@ -1,21 +1,29 @@
 import "dotenv/config";
+import { config } from "./config";
 import express from "express";
 import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
 import { setupSocket } from "./socket";
-import { RoomStore } from "./state/room-store";
+import { RoomStore, toRoomSummary } from "./state/room-store";
 import authRoutes from "./routes/auth";
 import spotifyRoutes from "./routes/spotify";
 import { authenticateToken, AuthRequest } from "./middleware/auth";
 
 const app = express();
 
+// Heroku and Fly both sit behind a single proxy; rate limiting needs the real client IP.
+app.set("trust proxy", 1);
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: config.corsOrigins,
     credentials: true
 }));
 app.use(express.json());
+
+app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+});
 
 // Auth Routes
 app.use("/api/auth", authRoutes);
@@ -24,67 +32,22 @@ app.use("/api/auth", authRoutes);
 app.use("/api/spotify", spotifyRoutes);
 
 // API Routes
-app.get("/api/rooms", (req, res) => {
-    try {
-        const rooms = RoomStore.getAllRooms().map(room => ({
-            ...room,
-            host: room.users.find(u => u.id === room.hostId) || { username: "Unknown" },
-            participants: room.users
-        }));
-        res.json(rooms);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Failed to fetch rooms" });
-    }
+app.get("/api/rooms", (_req, res) => {
+    res.json(RoomStore.getAllRooms().map(toRoomSummary));
 });
 
 app.get("/api/rooms/my", authenticateToken, (req: AuthRequest, res) => {
-    try {
-        if (!req.user) return res.sendStatus(401);
+    if (!req.user) return res.sendStatus(401);
 
-        // Filter rooms where the user is the host
-        const rooms = RoomStore.getAllRooms().filter(room => room.hostId === req.user!.id).map(room => ({
-            ...room,
-            host: room.users.find(u => u.id === room.hostId) || { username: "Unknown" },
-            participants: room.users
-        }));
-        res.json(rooms);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Failed to fetch my rooms" });
-    }
-});
-
-app.post("/api/rooms", authenticateToken, (req: AuthRequest, res) => {
-    try {
-        const { name } = req.body;
-
-        if (!req.user) return res.sendStatus(401);
-
-        // Create a user object for the host from the token
-        const user = {
-            id: req.user.id,
-            username: req.user.username
-        };
-
-        const room = RoomStore.createRoom(user);
-        if (name) {
-            room.name = name;
-        }
-
-        // No DB sync needed for now as per previous logic, but we might want to add it later
-
-        res.json(room);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: "Failed to create room" });
-    }
+    const username = req.user.username;
+    const rooms = RoomStore.getAllRooms().filter(room => room.hostUsername === username);
+    res.json(rooms.map(toRoomSummary));
 });
 
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.CORS_ORIGIN || "*",
+        origin: config.corsOrigins,
         methods: ["GET", "POST"],
         credentials: true
     }
