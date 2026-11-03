@@ -181,7 +181,7 @@ export default function LobbyPage() {
                             )}
                             <span className={`relative block ${cover.nowPlaying?.artwork ? "text-white" : ""}`}>
                                 <span className="inline-flex items-center gap-2 text-sm font-medium">
-                                    <span className="h-2 w-2 animate-pulse rounded-full bg-signal" />
+                                    <span className="h-2 w-2 animate-pulse rounded-full bg-teal-400" />
                                     Live now
                                 </span>
                                 <span className="mt-2 block break-words text-3xl font-semibold leading-tight tracking-tight md:text-4xl">{roomTitle(cover)}</span>
