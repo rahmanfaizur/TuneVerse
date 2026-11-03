@@ -22,7 +22,7 @@ const SOURCE_LABEL = { youtube: "YouTube", spotify: "Spotify" };
 const roomTitle = (room: RoomSummary) => room.name || `Room ${room.id}`;
 
 const listeners = (count: number) => {
-    if (count === 0) return "Nobody in yet";
+    if (count === 0) return "Nobody here yet";
     return count === 1 ? "1 listening" : `${count} listening`;
 };
 
@@ -43,8 +43,7 @@ export default function LobbyPage() {
     const [roomCode, setRoomCode] = useState("");
     const [isCreating, setIsCreating] = useState(false);
     const [joiningId, setJoiningId] = useState<string | null>(null);
-    const [today, setToday] = useState("");
-    const createTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+        const createTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const fetchRooms = useCallback(async () => {
         try {
@@ -63,10 +62,6 @@ export default function LobbyPage() {
     useEffect(() => {
         if (!user && !isLoading) router.push("/");
     }, [user, isLoading, router]);
-
-    useEffect(() => {
-        setToday(new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
-    }, []);
 
     // Arriving here with the back button should still take you out of the last room.
     useEffect(() => {
@@ -133,12 +128,10 @@ export default function LobbyPage() {
 
     if (error) {
         return (
-            <main className="flex min-h-screen flex-col justify-center px-6 md:px-16">
-                <h1 className="font-serif text-6xl italic leading-none tracking-tight md:text-9xl">No signal.</h1>
-                <p className="mt-6 max-w-md text-lg text-muted-foreground">
-                    We can&apos;t reach the server right now. It might be waking up, so give it a moment.
-                </p>
-                <Button onClick={() => window.location.reload()} className="mt-8 self-start">Try again</Button>
+            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Can&apos;t reach the server</h1>
+                <p className="mt-3 max-w-md text-lg text-muted-foreground">It might be waking up. Give it a moment and try again.</p>
+                <Button onClick={() => window.location.reload()} className="mt-6">Try again</Button>
             </main>
         );
     }
@@ -153,92 +146,96 @@ export default function LobbyPage() {
     const isFirstLoad = rooms === null;
 
     return (
-        <main className="min-h-screen overflow-x-hidden">
-            <div className="flex items-center justify-between gap-4 px-5 pt-5 text-sm md:px-10">
-                <span className="text-muted-foreground">{today}</span>
-                <span className="flex items-center gap-5">
-                    <span className="hidden text-muted-foreground sm:inline">Signed in as {user?.username}</span>
-                    <button onClick={logout} className="underline underline-offset-4 transition-colors hover:text-signal">Sign out</button>
+        <main className="mx-auto min-h-screen w-full max-w-6xl px-5 md:px-8">
+            <header className="flex items-center justify-between gap-4 py-5">
+                <span className="text-xl font-semibold tracking-tight">TuneVerse</span>
+                <span className="flex items-center gap-4 text-sm">
+                    <span className="hidden text-muted-foreground sm:inline">{user?.username}</span>
+                    <button onClick={logout} className="underline-offset-4 transition-colors hover:text-signal hover:underline">Sign out</button>
                 </span>
+            </header>
+
+            <div className="pb-6 pt-3 text-center md:pb-8 md:pt-5">
+                <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
+                    What are we <em>listening</em> to?
+                </h1>
+                <p className="mt-2 text-muted-foreground md:text-lg">Start a room, or jump into one that&apos;s already playing.</p>
             </div>
 
-            <h1 className="masthead px-4 text-center font-serif leading-[0.92] tracking-[-0.03em] md:px-8">TuneVerse</h1>
-
-            <div className="mx-5 flex items-baseline justify-between gap-4 border-y border-foreground py-2 md:mx-10">
-                <span className="font-serif text-lg italic">The Lobby</span>
-                <span className="text-sm text-muted-foreground">
-                    {isFirstLoad ? "Checking who's on" : rooms.length === 1 ? "1 room on air" : `${rooms.length} rooms on air`}
-                </span>
-            </div>
-
-            <div className="grid gap-8 px-5 py-8 md:px-10 md:py-10 lg:grid-cols-[minmax(0,1.7fr)_minmax(20rem,1fr)] lg:gap-12">
-                <section aria-label="Featured room">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
+                <section aria-label="Featured room" className="min-h-[20rem]">
                     {isFirstLoad ? (
-                        <div className="skeleton aspect-[4/3] w-full lg:aspect-[16/10]" />
+                        <div className="skeleton h-full min-h-[20rem] rounded-3xl" />
                     ) : cover ? (
                         <button
                             onClick={() => openRoom(cover.id)}
                             disabled={!!joiningId}
-                            className="cover group relative block aspect-[4/3] w-full overflow-hidden bg-signal text-left text-signal-foreground lg:aspect-[16/10]"
+                            className="group relative flex h-full min-h-[20rem] w-full flex-col justify-end overflow-hidden rounded-3xl bg-muted p-6 text-left md:p-8"
                         >
                             {cover.nowPlaying?.artwork && (
                                 <>
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={cover.nowPlaying.artwork} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.04]" />
-                                    <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/10" />
+                                    <img src={cover.nowPlaying.artwork} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]" />
+                                    <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
                                 </>
                             )}
-                            <span className={`absolute inset-x-0 bottom-0 block p-5 md:p-8 ${cover.nowPlaying?.artwork ? "text-white" : ""}`}>
-                                <span className="block font-serif text-lg italic md:text-xl">The room everyone&apos;s in</span>
-                                <span className="mt-1 block break-words font-serif text-5xl leading-[0.95] tracking-tight md:text-7xl xl:text-8xl">{roomTitle(cover)}</span>
-                                <span className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-[15px]">
-                                    <span>{listeners(cover.users.length)}</span>
-                                    {cover.nowPlaying && (
-                                        <span className="min-w-0 truncate">
-                                            On {SOURCE_LABEL[cover.nowPlaying.source]}: {cover.nowPlaying.title}
-                                        </span>
-                                    )}
-                                    <span className="ml-auto inline-flex items-center gap-2 underline underline-offset-4">
+                            <span className={`relative block ${cover.nowPlaying?.artwork ? "text-white" : ""}`}>
+                                <span className="inline-flex items-center gap-2 text-sm font-medium">
+                                    <span className="h-2 w-2 animate-pulse rounded-full bg-signal" />
+                                    Live now
+                                </span>
+                                <span className="mt-2 block break-words text-3xl font-semibold leading-tight tracking-tight md:text-4xl">{roomTitle(cover)}</span>
+                                <span className={`mt-1 block truncate text-[15px] ${cover.nowPlaying?.artwork ? "text-white/80" : "text-muted-foreground"}`}>
+                                    {cover.nowPlaying ? `${cover.nowPlaying.title} · ${SOURCE_LABEL[cover.nowPlaying.source]}` : "Nothing playing yet"}
+                                </span>
+                                <span className="mt-4 flex items-center justify-between gap-4">
+                                    <span className="text-[15px]">{listeners(cover.users.length)}</span>
+                                    <span className="inline-flex items-center gap-2 rounded-full bg-signal px-5 py-2.5 text-[15px] font-medium text-signal-foreground">
                                         {joiningId === cover.id && <Spinner />}
-                                        {joiningId === cover.id ? "Going in" : "Go in"}
+                                        {joiningId === cover.id ? "Joining" : "Join room"}
                                     </span>
                                 </span>
                             </span>
                         </button>
                     ) : (
-                        <div className="flex aspect-[4/3] w-full flex-col justify-end bg-muted p-5 md:p-8 lg:aspect-[16/10]">
-                            <p className="font-serif text-lg italic text-muted-foreground md:text-xl">
-                                {filter === "mine" ? "None of yours are running" : "Quiet in here"}
-                            </p>
-                            <p className="mt-1 font-serif text-5xl leading-[0.95] tracking-tight md:text-7xl xl:text-8xl">
-                                Nobody&apos;s on air.
-                            </p>
-                            <p className="mt-4 text-[15px] text-muted-foreground">Start a room and this whole page is yours.</p>
+                        <div className="flex h-full min-h-[20rem] flex-col justify-center rounded-3xl bg-muted p-6 md:p-10">
+                            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+                                {filter === "mine" ? "You don't have any rooms running" : "No rooms are live right now"}
+                            </h2>
+                            <p className="mt-1 text-muted-foreground">Getting one going takes about ten seconds.</p>
+                            <ol className="mt-6 space-y-3 text-[15px]">
+                                {["Start a room and give it a name", "Send the link to your friends", "Play anything from YouTube or Spotify"].map((step, i) => (
+                                    <li key={step} className="flex items-center gap-3">
+                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background text-sm font-medium">{i + 1}</span>
+                                        {step}
+                                    </li>
+                                ))}
+                            </ol>
                         </div>
                     )}
                 </section>
 
-                <div className="flex flex-col gap-10">
-                    <form onSubmit={createRoom}>
-                        <label htmlFor="room-name" className="block font-serif text-3xl italic md:text-4xl">Start a room</label>
-                        <p className="mt-1 text-[15px] text-muted-foreground">Then play anything from YouTube or Spotify.</p>
+                <div className="flex flex-col gap-5">
+                    <form onSubmit={createRoom} className="rounded-3xl border border-border p-6">
+                        <label htmlFor="room-name" className="block text-xl font-semibold tracking-tight">Start a room</label>
+                        <p className="mt-0.5 text-[15px] text-muted-foreground">Then play from YouTube or Spotify.</p>
                         <input
                             id="room-name"
                             value={roomName}
                             maxLength={60}
                             onChange={(e) => setRoomName(e.target.value)}
                             placeholder={`${user?.username}'s room`}
-                            className="mt-4 w-full border-b border-foreground bg-transparent py-2.5 text-lg outline-none transition-colors placeholder:text-muted-foreground focus:border-signal"
+                            className="field mt-3"
                         />
-                        <Button type="submit" loading={isCreating} loadingText="Setting it up" className="mt-4 w-full">
-                            Start the room
+                        <Button type="submit" loading={isCreating} loadingText="Setting it up" className="mt-3 w-full">
+                            Start room
                         </Button>
                     </form>
 
-                    <form onSubmit={joinByCode} className="border-t border-border pt-8">
-                        <label htmlFor="room-code" className="block font-serif text-3xl italic md:text-4xl">Got a code?</label>
-                        <p className="mt-1 text-[15px] text-muted-foreground">Type it in, or paste the invite link.</p>
-                        <div className="mt-4 flex items-end gap-4">
+                    <form onSubmit={joinByCode} className="rounded-3xl border border-border p-6">
+                        <label htmlFor="room-code" className="block text-xl font-semibold tracking-tight">Have a code?</label>
+                        <p className="mt-0.5 text-[15px] text-muted-foreground">Type it in, or paste an invite link.</p>
+                        <div className="mt-3 flex gap-2">
                             <input
                                 id="room-code"
                                 value={roomCode}
@@ -246,9 +243,9 @@ export default function LobbyPage() {
                                 placeholder="ABC123"
                                 autoComplete="off"
                                 spellCheck={false}
-                                className="min-w-0 flex-1 border-b border-foreground bg-transparent py-2.5 text-lg tracking-[0.2em] outline-none transition-colors placeholder:text-muted-foreground focus:border-signal"
+                                className="field min-w-0 flex-1 tracking-widest"
                             />
-                            <Button type="submit" variant="outline" disabled={!roomCode} loading={!!joiningId && joiningId === roomCode} loadingText="Joining">
+                            <Button type="submit" variant="outline" disabled={!roomCode} loading={!!joiningId && joiningId === roomCode} loadingText="Joining" className="shrink-0">
                                 Join
                             </Button>
                         </div>
@@ -256,10 +253,10 @@ export default function LobbyPage() {
                 </div>
             </div>
 
-            <section className="px-5 pb-24 md:px-10">
-                <div className="flex items-baseline justify-between gap-4 border-b border-foreground pb-2">
-                    <h2 className="font-serif text-3xl italic md:text-4xl">Also on air</h2>
-                    <div className="flex gap-4 text-sm" role="group" aria-label="Which rooms to show">
+            <section className="pb-20 pt-8">
+                <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-xl font-semibold tracking-tight">More live rooms</h2>
+                    <div className="flex rounded-full bg-muted p-1 text-sm" role="group" aria-label="Which rooms to show">
                         {(["all", "mine"] as const).map((option) => (
                             <button
                                 key={option}
@@ -269,7 +266,7 @@ export default function LobbyPage() {
                                     setRooms(null);
                                     setFilter(option);
                                 }}
-                                className={`border-b-2 pb-0.5 transition-colors ${filter === option ? "border-signal" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                                className={`rounded-full px-3.5 py-1 transition-colors ${filter === option ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                             >
                                 {option === "all" ? "Everyone" : "Yours"}
                             </button>
@@ -278,37 +275,40 @@ export default function LobbyPage() {
                 </div>
 
                 {isFirstLoad ? (
-                    <div className="mt-2 space-y-2" aria-hidden="true">
-                        {[0, 1, 2].map((i) => <div key={i} className="skeleton h-16" />)}
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+                        {[0, 1, 2].map((i) => <div key={i} className="skeleton h-20 rounded-2xl" />)}
                     </div>
                 ) : others.length === 0 ? (
-                    <p className="py-8 font-serif text-xl italic text-muted-foreground">
+                    <p className="mt-3 text-[15px] text-muted-foreground">
                         {cover ? "That's the only room going right now." : "Nothing here yet."}
                     </p>
                 ) : (
-                    <ol>
-                        {others.map((room, index) => (
-                            <li key={room.id} className="queue-row border-b border-border">
+                    <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {others.map((room) => (
+                            <li key={room.id} className="queue-row">
                                 <button
                                     onClick={() => openRoom(room.id)}
                                     disabled={!!joiningId}
-                                    className="group grid w-full grid-cols-[2.5rem_minmax(0,1fr)_auto] items-baseline gap-3 py-4 text-left md:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)_7rem_4rem] md:gap-6"
+                                    className="flex w-full items-center gap-3 rounded-2xl border border-border p-3 text-left transition-colors hover:bg-muted"
                                 >
-                                    <span className="font-serif text-2xl italic text-muted-foreground">{index + 2}</span>
-                                    <span className="truncate font-serif text-2xl transition-[color,transform] duration-300 group-hover:translate-x-1 group-hover:text-signal md:text-3xl">
-                                        {roomTitle(room)}
+                                    {room.nowPlaying?.artwork ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={room.nowPlaying.artwork} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                                    ) : (
+                                        <span className="h-14 w-14 shrink-0 rounded-xl bg-muted" />
+                                    )}
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-medium">{roomTitle(room)}</span>
+                                        <span className="block truncate text-sm text-muted-foreground">
+                                            {room.nowPlaying ? room.nowPlaying.title : "Nothing playing yet"}
+                                        </span>
+                                        <span className="block text-sm text-muted-foreground">{listeners(room.users.length)}</span>
                                     </span>
-                                    <span className="col-start-2 row-start-2 truncate text-sm text-muted-foreground md:col-start-auto md:row-start-auto">
-                                        {room.nowPlaying ? `On ${SOURCE_LABEL[room.nowPlaying.source]}: ${room.nowPlaying.title}` : "Nothing playing yet"}
-                                    </span>
-                                    <span className="hidden text-sm text-muted-foreground md:block">{listeners(room.users.length)}</span>
-                                    <span className="col-start-3 row-start-1 inline-flex items-center justify-end gap-2 text-sm underline underline-offset-4 md:col-start-auto md:row-start-auto">
-                                        {joiningId === room.id ? <Spinner /> : "Join"}
-                                    </span>
+                                    {joiningId === room.id && <Spinner className="shrink-0 text-signal" />}
                                 </button>
                             </li>
                         ))}
-                    </ol>
+                    </ul>
                 )}
             </section>
         </main>
