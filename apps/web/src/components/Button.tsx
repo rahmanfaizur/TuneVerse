@@ -1,13 +1,12 @@
 import { ButtonHTMLAttributes } from "react";
 import Spinner from "./Spinner";
 
-type Variant = "ink" | "signal" | "outline" | "quiet";
+type Variant = "primary" | "outline" | "quiet";
 
 const VARIANTS: Record<Variant, string> = {
-    ink: "bg-accent text-accent-foreground enabled:hover:bg-signal enabled:hover:text-signal-foreground",
-    signal: "bg-signal text-signal-foreground enabled:hover:bg-accent enabled:hover:text-accent-foreground",
-    outline: "border border-foreground text-foreground enabled:hover:bg-foreground enabled:hover:text-background",
-    quiet: "text-foreground underline underline-offset-4 enabled:hover:text-signal",
+    primary: "rounded-full bg-signal px-6 py-3 font-medium text-signal-foreground enabled:hover:opacity-90",
+    outline: "rounded-full border border-border px-6 py-3 font-medium enabled:hover:bg-muted",
+    quiet: "text-foreground underline-offset-4 enabled:hover:text-signal enabled:hover:underline",
 };
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,7 +16,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export default function Button({
-    variant = "ink",
+    variant = "primary",
     loading = false,
     loadingText,
     disabled,
@@ -25,14 +24,12 @@ export default function Button({
     children,
     ...props
 }: ButtonProps) {
-    const padding = variant === "quiet" ? "" : "px-7 py-3.5";
-
     return (
         <button
             {...props}
             disabled={disabled || loading}
             aria-busy={loading}
-            className={`inline-flex items-center justify-center gap-2.5 text-sm tracking-wide transition-[color,background-color,opacity,transform] duration-300 active:enabled:scale-[0.98] disabled:cursor-not-allowed ${loading ? "" : "disabled:opacity-35"} ${padding} ${VARIANTS[variant]} ${className}`}
+            className={`inline-flex items-center justify-center gap-2 text-[15px] transition-[color,background-color,opacity,transform] duration-200 active:enabled:scale-[0.98] disabled:cursor-not-allowed ${loading ? "opacity-80" : "disabled:opacity-40"} ${VARIANTS[variant]} ${className}`}
         >
             {loading && <Spinner />}
             {loading ? loadingText ?? children : children}

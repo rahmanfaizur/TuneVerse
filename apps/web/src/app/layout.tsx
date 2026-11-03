@@ -3,22 +3,21 @@ import { SocketProvider } from "../context/SocketContext";
 import { AuthProvider } from "../context/AuthContext";
 import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
-import { Bodoni_Moda, Jost } from "next/font/google";
+import { Figtree, Newsreader } from "next/font/google";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { ThemeToggle } from "../components/ThemeToggle";
 import NavigationProgress from "../components/NavigationProgress";
 
-const bodoni = Bodoni_Moda({
+const figtree = Figtree({
   subsets: ["latin"],
-  style: ["normal", "italic"],
-  axes: ["opsz"],
-  variable: "--font-serif",
+  variable: "--font-sans",
   display: "swap",
 });
 
-const jost = Jost({
+const newsreader = Newsreader({
   subsets: ["latin"],
-  variable: "--font-sans",
+  style: ["italic"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -29,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${bodoni.variable} ${jost.variable} font-sans antialiased`}>
+      <body className={`${figtree.variable} ${newsreader.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -42,13 +41,13 @@ export default function RootLayout({
                 {children}
                 <ThemeToggle />
                 <Toaster
-                  position="top-center"
+                  position="bottom-center"
                   toastOptions={{
                     style: {
                       background: "var(--foreground)",
                       color: "var(--background)",
                       border: "none",
-                      borderRadius: 0,
+                      borderRadius: 12,
                       fontFamily: "var(--font-sans)",
                     },
                   }}

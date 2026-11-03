@@ -3,15 +3,15 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f6f1e8;
-  --foreground: #17110d;
-  --muted: #ebe4d7;
-  --muted-foreground: #6d6256;
-  --border: #cfc5b4;
-  --accent: #17110d;
-  --accent-foreground: #f6f1e8;
-  --signal: #b3142e;
-  --signal-foreground: #fbf6ee;
+  --background: #faf8f5;
+  --foreground: #1d1b1a;
+  --muted: #f1eee9;
+  --muted-foreground: #6b6660;
+  --border: #e4dfd8;
+  --accent: #1d1b1a;
+  --accent-foreground: #faf8f5;
+  --signal: #0f766e;
+  --signal-foreground: #ffffff;
 }
 
 @theme inline {
@@ -29,15 +29,15 @@
 }
 
 .dark {
-  --background: #231c1e;
-  --foreground: #f4eee2;
-  --muted: #302729;
-  --muted-foreground: #b8ad9f;
-  --border: #4b4042;
-  --accent: #f4eee2;
-  --accent-foreground: #231c1e;
-  --signal: #f4586c;
-  --signal-foreground: #1c1517;
+  --background: #1e1c1b;
+  --foreground: #f4f1ec;
+  --muted: #2a2725;
+  --muted-foreground: #a8a29a;
+  --border: #3a3633;
+  --accent: #f4f1ec;
+  --accent-foreground: #1e1c1b;
+  --signal: #2dd4bf;
+  --signal-foreground: #0b1f1d;
 }
 
 html {
@@ -56,13 +56,29 @@ body {
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+/* The one serif touch: a single word here and there, so it never gets heavy. */
+em {
   font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.75rem;
+  background: var(--muted);
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+.field::placeholder {
+  color: var(--muted-foreground);
+}
+
+.field:focus {
+  box-shadow: 0 0 0 2px var(--signal);
 }
 
 @keyframes float-up {
@@ -254,10 +270,6 @@ h6 {
   .queue-row {
     animation: none;
   }
-}
-
-.masthead {
-  font-size: clamp(4.5rem, 21.5vw, 30rem);
 }
 
 .skeleton {
