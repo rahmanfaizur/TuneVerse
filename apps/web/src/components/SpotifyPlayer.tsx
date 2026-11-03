@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSpotify } from "../context/SpotifyContext";
 import { EVENTS, PublicRoom } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
+import Button from "./Button";
 
 // Spotify has no rate control like the YouTube player, so we can only seek.
 // Seeking is audible, hence the wide margin.
@@ -16,7 +17,7 @@ interface SpotifyPlayerProps {
 }
 
 export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPlayerProps) {
-    const { player, deviceId, isConnected, playTrack } = useSpotify();
+    const { player, deviceId, isConnected, playTrack, connectSpotify, isConnecting, needsPremium } = useSpotify();
     const [currentTrack, setCurrentTrack] = useState<Spotify.Track | null>(null);
     const [isPaused, setPaused] = useState(false);
     const [isActive, setActive] = useState(false);
@@ -112,10 +113,27 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
         }
     }, [currentTrack]);
 
-    if (!isConnected) {
+    if (!isConnected || needsPremium) {
+        const artwork = room.playback.meta?.artwork;
         return (
-            <div className="w-full h-full flex items-center justify-center bg-black text-white">
-                <p>Please connect Spotify to listen.</p>
+            <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black p-6 text-center text-white">
+                {artwork && <div className="absolute inset-0 scale-110 bg-cover bg-center opacity-30 blur-2xl" style={{ backgroundImage: `url(${artwork})` }} />}
+                <div className="relative max-w-lg">
+                    <p className="font-serif text-lg italic opacity-80">This one&apos;s playing on Spotify</p>
+                    <h2 className="mt-2 font-serif text-3xl md:text-5xl">{room.playback.meta?.title ?? "A Spotify track"}</h2>
+                    {needsPremium ? (
+                        <p className="mt-5 text-[15px] opacity-80">
+                            Spotify only lets Premium accounts play music in the browser. You can still chat, or add a YouTube song to the queue.
+                        </p>
+                    ) : (
+                        <>
+                            <p className="mt-5 text-[15px] opacity-80">Connect Spotify to hear it. You&apos;ll need Premium and an approved account.</p>
+                            <Button variant="signal" onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="mt-5">
+                                Connect to hear this
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
         );
     }
@@ -153,7 +171,7 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
                         />
                     ) : (
                         <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                            <span className="text-4xl">🎵</span>
+                            <span className="font-serif text-4xl italic">TV</span>
                         </div>
                     )}
                 </div>
@@ -181,26 +199,12 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
                 </div>
 
                 {!isActive && (
-                    <div className="mt-8 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-xs font-bold uppercase tracking-widest text-white border border-white/20 animate-pulse">
-                        Device Not Active - Transfer Playback
+                    <div className="mt-8 px-4 py-2 font-serif text-lg italic text-white/80 animate-pulse">
+                        Getting Spotify ready
                     </div>
                 )}
             </div>
 
-            {/* Visualizer Placeholder (Simulated) */}
-            <div className="absolute bottom-0 left-0 right-0 h-32 flex items-end justify-center gap-1 pb-4 z-20 pointer-events-none opacity-50">
-                {[...Array(20)].map((_, i) => (
-                    <div
-                        key={i}
-                        className="w-2 bg-white rounded-t-sm animate-pulse"
-                        style={{
-                            height: `${Math.random() * 100}%`,
-                            animationDuration: `${0.5 + Math.random()}s`,
-                            animationDelay: `${Math.random() * 0.5}s`
-                        }}
-                    />
-                ))}
-            </div>
         </div>
     );
 }
