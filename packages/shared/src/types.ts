@@ -67,6 +67,11 @@ export interface RoomSummary {
     name?: string;
     hostId: string;
     users: Pick<User, "id" | "username">[];
+    nowPlaying?: {
+        title: string;
+        artwork?: string;
+        source: 'youtube' | 'spotify';
+    };
 }
 
 // 5. Chat Message

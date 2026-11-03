@@ -29,6 +29,13 @@ export const toRoomSummary = (room: Room): RoomSummary => ({
     name: room.name,
     hostId: room.hostId,
     users: room.users.map(({ id, username }) => ({ id, username })),
+    nowPlaying: room.playback.videoId && room.playback.meta
+        ? {
+            title: room.playback.meta.title,
+            artwork: room.playback.meta.artwork,
+            source: room.playbackSource,
+        }
+        : undefined,
 });
 
 export const RoomStore = {
