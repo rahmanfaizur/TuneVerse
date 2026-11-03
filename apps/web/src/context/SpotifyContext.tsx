@@ -12,6 +12,7 @@ const STORAGE = {
     user: "spotify_user",
 };
 const OAUTH_STATE_KEY = "spotify_oauth_state";
+const RETURN_TO_KEY = "spotify_return_to";
 
 // Refresh a bit early so a track starting right at expiry doesn't fail.
 const REFRESH_MARGIN_MS = 60 * 1000;
@@ -32,6 +33,8 @@ interface SpotifyContextType {
     player: Spotify.Player | null;
     deviceId: string | null;
     playTrack: (uri: string, positionMs?: number) => Promise<void>;
+    isConnecting: boolean;
+    needsPremium: boolean;
 }
 
 const SpotifyContext = createContext<SpotifyContextType | undefined>(undefined);
@@ -48,6 +51,8 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
     const [player, setPlayer] = useState<Spotify.Player | null>(null);
     const [deviceId, setDeviceId] = useState<string | null>(null);
     const [expiresAt, setExpiresAt] = useState<number | null>(null);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [needsPremium, setNeedsPremium] = useState(false);
 
     // The SDK holds on to getOAuthToken for its whole life, so it reads from a ref.
     const tokenRef = useRef<string | null>(null);
@@ -69,6 +74,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         setSpotifyToken(null);
         setSpotifyUser(null);
         setExpiresAt(null);
+        setNeedsPremium(false);
     }, []);
 
     const refreshAccessToken = useCallback(async (): Promise<string | null> => {
@@ -143,6 +149,11 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
                     saveTokens(data.access_token, data.expires_at, data.refresh_token);
                     localStorage.setItem(STORAGE.user, JSON.stringify(data.user));
                     setSpotifyUser(data.user);
+
+                    // People usually connect from inside a room, so put them back there.
+                    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+                    sessionStorage.removeItem(RETURN_TO_KEY);
+                    if (returnTo && returnTo !== window.location.pathname) window.location.assign(returnTo);
                 })
                 .catch((e) => {
                     console.error("Spotify login failed", e);
@@ -215,9 +226,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
                 console.error("Spotify auth error:", message);
                 toast.error("Spotify rejected this login. Try reconnecting.");
             });
-            instance.addListener("account_error", () => {
-                toast.error("Playing music through Spotify needs a Premium account.");
-            });
+            instance.addListener("account_error", () => setNeedsPremium(true));
 
             instance.connect();
             setPlayer(instance);
@@ -256,9 +265,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
                     Authorization: `Bearer ${tokenRef.current}`,
                 },
             });
-            if (res.status === 403) {
-                toast.error("Playing music through Spotify needs a Premium account.");
-            }
+            if (res.status === 403) setNeedsPremium(true);
         } catch (e) {
             console.error("Failed to play track", e);
         }
@@ -267,14 +274,18 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
     const connectSpotify = useCallback(() => {
         const state = randomHex(16);
         sessionStorage.setItem(OAUTH_STATE_KEY, state);
+        sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname);
+        setIsConnecting(true);
 
         fetch(`${API_URL}/api/spotify/auth?state=${state}`)
             .then((res) => res.json())
             .then((data) => {
-                if (data.authUrl) window.location.href = data.authUrl;
+                if (!data.authUrl) throw new Error("No auth URL in response");
+                window.location.href = data.authUrl;
             })
             .catch((err) => {
                 console.error("Failed to get Spotify auth URL", err);
+                setIsConnecting(false);
                 toast.error("Couldn't reach Spotify. Please try again.");
             });
     }, []);
@@ -290,6 +301,8 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
             player,
             deviceId,
             playTrack,
+            isConnecting,
+            needsPremium,
         }}>
             {children}
         </SpotifyContext.Provider>

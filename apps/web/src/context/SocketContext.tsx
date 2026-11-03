@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 import { EVENTS, PublicRoom } from "@tuneverse/shared";
@@ -13,6 +13,7 @@ interface SocketContextType {
     fingerprint: string | null; // <--- NEW
     login: (username: string) => void;
     logout: () => void;
+    leaveRoom: () => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -23,6 +24,7 @@ const SocketContext = createContext<SocketContextType>({
     fingerprint: null,
     login: () => { },
     logout: () => { },
+    leaveRoom: () => { },
 });
 
 export const useSocket = () => useContext(SocketContext);
@@ -117,8 +119,15 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         setRoom(null);
     };
 
+    // Without clearing this, coming back to the same room would skip joining it again.
+    const leaveRoom = useCallback(() => {
+        socket?.emit(EVENTS.ROOM_LEAVE);
+        setRoom(null);
+        setError(null);
+    }, [socket]);
+
     return (
-        <SocketContext.Provider value={{ socket, isConnected, room, error, fingerprint, login, logout }}>
+        <SocketContext.Provider value={{ socket, isConnected, room, error, fingerprint, login, logout, leaveRoom }}>
             {children}
         </SocketContext.Provider>
     );
