@@ -162,8 +162,8 @@ export default function LobbyPage() {
                 <p className="mt-2 text-muted-foreground md:text-lg">Start a room, or jump into one that&apos;s already playing.</p>
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
-                <section aria-label="Featured room" className="min-h-[20rem]">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
+                <section aria-label="Featured room" className="min-h-[20rem] min-w-0">
                     {isFirstLoad ? (
                         <div className="skeleton h-full min-h-[20rem] rounded-3xl" />
                     ) : cover ? (

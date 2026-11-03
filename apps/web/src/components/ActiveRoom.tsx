@@ -114,7 +114,7 @@ export default function ActiveRoom({ username }: { username: string }) {
                 </div>
             </header>
 
-            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
+            <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
                 <div className="min-w-0 space-y-5">
                     <div className="overflow-hidden rounded-3xl bg-muted">
                         <VideoPlayer room={room} socket={socket} onPickSource={pickSource} />
