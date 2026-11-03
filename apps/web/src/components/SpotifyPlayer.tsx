@@ -119,8 +119,8 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
             <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black p-6 text-center text-white">
                 {artwork && <div className="absolute inset-0 scale-110 bg-cover bg-center opacity-30 blur-2xl" style={{ backgroundImage: `url(${artwork})` }} />}
                 <div className="relative max-w-lg">
-                    <p className="font-serif text-lg italic opacity-80">This one&apos;s playing on Spotify</p>
-                    <h2 className="mt-2 font-serif text-3xl md:text-5xl">{room.playback.meta?.title ?? "A Spotify track"}</h2>
+                    <p className="text-[15px] opacity-80">This one&apos;s playing on Spotify</p>
+                    <h2 className="mt-1 text-2xl font-semibold tracking-tight md:text-4xl">{room.playback.meta?.title ?? "A Spotify track"}</h2>
                     {needsPremium ? (
                         <p className="mt-5 text-[15px] opacity-80">
                             Spotify only lets Premium accounts play music in the browser. You can still chat, or add a YouTube song to the queue.
@@ -128,7 +128,7 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
                     ) : (
                         <>
                             <p className="mt-5 text-[15px] opacity-80">Connect Spotify to hear it. You&apos;ll need Premium and an approved account.</p>
-                            <Button variant="signal" onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="mt-5">
+                            <Button onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="mt-5">
                                 Connect to hear this
                             </Button>
                         </>
@@ -171,35 +171,35 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
                         />
                     ) : (
                         <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                            <span className="font-serif text-4xl italic">TV</span>
+                            <span className="text-4xl font-semibold">TV</span>
                         </div>
                     )}
                 </div>
 
                 {/* Track Info */}
                 <div className="text-center space-y-2 mb-8">
-                    <h2 className="text-2xl md:text-4xl font-serif font-bold text-white drop-shadow-md">
+                    <h2 className="text-2xl md:text-4xl font-semibold tracking-tight text-white">
                         {displayTitle}
                     </h2>
-                    <p className="text-lg text-gray-200 font-sans tracking-widest uppercase drop-shadow-md">
+                    <p className="text-lg text-white/75">
                         {displayArtist}
                     </p>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="w-full max-w-2xl flex items-center gap-4 px-4">
-                    <span className="text-xs font-mono text-gray-300 w-10 text-right">{formatTime(position)}</span>
+                    <span className="text-xs text-gray-300 w-10 text-right">{formatTime(position)}</span>
                     <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-white rounded-full transition-all duration-1000 ease-linear"
                             style={{ width: `${duration ? (position / duration) * 100 : 0}%` }}
                         />
                     </div>
-                    <span className="text-xs font-mono text-gray-300 w-10">{formatTime(duration)}</span>
+                    <span className="text-xs text-gray-300 w-10">{formatTime(duration)}</span>
                 </div>
 
                 {!isActive && (
-                    <div className="mt-8 px-4 py-2 font-serif text-lg italic text-white/80 animate-pulse">
+                    <div className="mt-8 mt-6 px-4 py-2 text-white/80 animate-pulse">
                         Getting Spotify ready
                     </div>
                 )}

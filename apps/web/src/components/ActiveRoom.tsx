@@ -83,49 +83,46 @@ export default function ActiveRoom({ username }: { username: string }) {
     ];
 
     return (
-        <div className="mx-auto w-full max-w-[1500px] px-5 pb-16 md:px-10">
-            <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border py-5">
-                <Link href="/lobby" onClick={() => leaveRoom()} className="font-serif text-2xl tracking-tight transition-colors hover:text-signal">
-                    TuneVerse
-                </Link>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-                    <button onClick={copyInvite} className="group transition-colors hover:text-signal">
-                        Room <span className="font-medium tracking-[0.15em]">{room.id}</span>
-                        <span className="ml-2 underline underline-offset-4">Copy invite</span>
-                    </button>
+        <div className="mx-auto w-full max-w-[1200px] px-5 pb-16 md:px-8">
+            <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
+                <div className="flex min-w-0 items-baseline gap-3">
+                    <Link href="/lobby" onClick={() => leaveRoom()} className="text-xl font-semibold tracking-tight transition-colors hover:text-signal">
+                        TuneVerse
+                    </Link>
+                    <span className="text-border">/</span>
+                    <h1 className="min-w-0 truncate text-lg font-medium">{room.name || `Room ${room.id}`}</h1>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                    <span className="text-muted-foreground">
+                        {room.hostId === socket?.id ? "You're the host" : hostName ? `Hosted by ${hostName}` : "Host stepped out"}
+                    </span>
                     {spotifyConnected ? (
                         <button onClick={disconnectSpotify} className="text-muted-foreground transition-colors hover:text-signal" title="Disconnect Spotify">
                             Spotify: {spotifyUser?.display_name ?? "connected"}
                         </button>
                     ) : (
-                        <Button variant="quiet" onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify">
+                        <Button variant="quiet" onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="!text-sm">
                             Connect Spotify
                         </Button>
                     )}
-                    <Button variant="quiet" onClick={leave} loading={isLeaving} loadingText="Leaving">
+                    <button onClick={copyInvite} className="rounded-full bg-muted px-4 py-2 font-medium transition-opacity hover:opacity-80">
+                        Copy invite · <span className="tracking-wider">{room.id}</span>
+                    </button>
+                    <Button variant="quiet" onClick={leave} loading={isLeaving} loadingText="Leaving" className="!text-sm">
                         Leave
                     </Button>
                 </div>
             </header>
 
-            <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-1 pb-6 pt-7 md:pt-10">
-                <h1 className="min-w-0 break-words font-serif text-4xl leading-none tracking-tight md:text-6xl">
-                    {room.name || `Room ${room.id}`}
-                </h1>
-                <p className="pb-1 font-serif text-lg italic text-muted-foreground">
-                    {room.hostId === socket?.id ? "You're the host" : hostName ? `Hosted by ${hostName}` : "The host stepped out"}
-                </p>
-            </div>
-
-            <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_23rem]">
-                <div className="min-w-0 space-y-8">
-                    <div className="aspect-video bg-muted">
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
+                <div className="min-w-0 space-y-5">
+                    <div className="overflow-hidden rounded-3xl bg-muted">
                         <VideoPlayer room={room} socket={socket} onPickSource={pickSource} />
                     </div>
                     <MusicSearch socket={socket} source={source} onSourceChange={setSource} inputRef={searchInputRef} />
                 </div>
 
-                <aside className="flex h-[32rem] flex-col border border-border lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:max-h-[50rem]">
+                <aside className="flex h-[30rem] flex-col overflow-hidden rounded-3xl border border-border lg:sticky lg:top-4 lg:h-[calc(100vh-6rem)] lg:max-h-[42rem]">
                     <div role="tablist" className="flex shrink-0 border-b border-border">
                         {tabs.map((tab) => (
                             <button
@@ -133,11 +130,11 @@ export default function ActiveRoom({ username }: { username: string }) {
                                 role="tab"
                                 aria-selected={activeTab === tab.id}
                                 onClick={() => openTab(tab.id)}
-                                className={`-mb-px flex-1 border-b-2 py-3.5 text-sm transition-colors ${activeTab === tab.id ? "border-signal" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+                                className={`-mb-px flex-1 border-b-2 py-3.5 text-sm transition-colors ${activeTab === tab.id ? "border-signal font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}
                             >
                                 {tab.label}
                                 {!!tab.badge && (
-                                    <span className={`ml-1.5 text-xs ${tab.id === "chat" ? "bg-signal px-1.5 py-0.5 text-signal-foreground" : "text-muted-foreground"}`}>
+                                    <span className={`ml-1.5 text-xs ${tab.id === "chat" ? "rounded-full bg-signal px-1.5 py-0.5 text-signal-foreground" : "text-muted-foreground"}`}>
                                         {tab.badge}
                                     </span>
                                 )}
@@ -157,14 +154,14 @@ export default function ActiveRoom({ username }: { username: string }) {
                             <ul className="h-full overflow-y-auto">
                                 {room.users.map((user) => (
                                     <li key={user.id} className="flex items-center gap-3 border-b border-border px-4 py-3">
-                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-muted font-serif text-lg italic">
+                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted font-medium">
                                             {(user.username?.[0] ?? "?").toUpperCase()}
                                         </span>
                                         <span className="min-w-0 flex-1 truncate text-[15px]">
                                             {user.username}
                                             {user.id === socket?.id && <span className="text-muted-foreground"> (you)</span>}
                                         </span>
-                                        {room.hostId === user.id && <span className="font-serif text-sm italic text-signal">Host</span>}
+                                        {room.hostId === user.id && <span className="text-sm font-medium text-signal">Host</span>}
                                     </li>
                                 ))}
                             </ul>

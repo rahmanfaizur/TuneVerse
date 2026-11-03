@@ -47,7 +47,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
         <div className="flex h-full flex-col">
             <div ref={listRef} className="flex-1 space-y-5 overflow-y-auto p-5">
                 {messages.length === 0 ? (
-                    <p className="pt-8 text-center font-serif text-lg italic text-muted-foreground">
+                    <p className="pt-8 text-center text-muted-foreground">
                         Nothing said yet. Go on, say hi.
                     </p>
                 ) : (
@@ -61,7 +61,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                 </div>
-                                <p className={`mt-1 break-words px-3 py-2 text-[15px] leading-snug ${isMe ? "bg-accent text-accent-foreground" : "bg-muted"}`}>
+                                <p className={`mt-1 break-words rounded-2xl px-3.5 py-2 text-[15px] leading-snug ${isMe ? "bg-signal text-signal-foreground" : "bg-muted"}`}>
                                     {msg.text}
                                 </p>
                             </div>
@@ -70,7 +70,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                 )}
             </div>
 
-            <form onSubmit={sendMessage} className="flex items-center gap-3 border-t border-border p-4">
+            <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border p-3">
                 <input
                     type="text"
                     value={inputText}
@@ -78,12 +78,12 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                     onChange={(e) => setInputText(e.target.value)}
                     placeholder="Say something"
                     aria-label="Message"
-                    className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+                    className="field min-w-0 flex-1 !py-2 text-[15px]"
                 />
                 <button
                     type="submit"
                     disabled={!inputText.trim()}
-                    className="text-sm underline underline-offset-4 transition-colors enabled:hover:text-signal disabled:opacity-30 disabled:no-underline"
+                    className="shrink-0 px-2 text-sm font-medium text-signal disabled:opacity-40"
                 >
                     Send
                 </button>

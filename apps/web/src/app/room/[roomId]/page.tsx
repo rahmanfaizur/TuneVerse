@@ -86,25 +86,21 @@ export default function RoomPage() {
 
     if (error) {
         return (
-            <main className="flex min-h-screen flex-col justify-center px-6 md:px-16">
-                <h1 className="font-serif text-6xl italic leading-none tracking-tight md:text-9xl">This room&apos;s gone.</h1>
-                <p className="mt-6 max-w-md text-lg text-muted-foreground">
-                    It may have ended, or the code might be wrong. ({error})
-                </p>
-                <Button onClick={backToLobby} className="mt-8 self-start">Back to the lobby</Button>
+            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">This room isn&apos;t <em>here</em></h1>
+                <p className="mt-3 max-w-md text-lg text-muted-foreground">It may have ended, or the code might be wrong. Check it and try again.</p>
+                <Button onClick={backToLobby} className="mt-6">Back to the lobby</Button>
             </main>
         );
     }
 
     if (isPending) {
         return (
-            <main className="flex min-h-screen flex-col justify-center px-6 md:px-16">
-                <p className="flex items-center gap-3 text-muted-foreground"><Spinner /> Waiting for the host</p>
-                <h1 className="mt-4 font-serif text-6xl italic leading-none tracking-tight md:text-9xl">Knock knock.</h1>
-                <p className="mt-6 max-w-md text-lg text-muted-foreground">
-                    The host needs to let you in. This page will open by itself once they do.
-                </p>
-                <Button variant="outline" onClick={backToLobby} className="mt-8 self-start">Never mind</Button>
+            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+                <Spinner className="text-3xl text-signal" />
+                <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">Knock <em>knock</em></h1>
+                <p className="mt-3 max-w-md text-lg text-muted-foreground">The host needs to let you in. This page will open by itself once they do.</p>
+                <Button variant="outline" onClick={backToLobby} className="mt-6">Never mind</Button>
             </main>
         );
     }
@@ -118,16 +114,16 @@ export default function RoomPage() {
     return (
         <main className="relative min-h-screen">
             {request && room.hostId === socket?.id && (
-                <div className="dropdown-enter fixed inset-x-0 top-0 z-50 flex flex-wrap items-center justify-between gap-3 bg-accent px-5 py-4 text-accent-foreground shadow-2xl md:px-10">
+                <div className="dropdown-enter fixed inset-x-0 top-0 z-50 flex flex-wrap items-center justify-between gap-3 bg-accent px-5 py-3.5 text-accent-foreground shadow-xl md:px-10">
                     <p className="text-lg">
-                        <span className="font-serif italic">{request.username}</span> wants to come in
+                        <span className="font-semibold">{request.username}</span> wants to come in
                         {joinRequests.length > 1 && <span className="opacity-70"> (+{joinRequests.length - 1} more)</span>}
                     </p>
                     <div className="flex gap-3 text-sm">
-                        <button onClick={() => handleDecision(request.userId, true)} className="bg-signal px-5 py-2 text-signal-foreground transition-opacity hover:opacity-85">
+                        <button onClick={() => handleDecision(request.userId, true)} className="rounded-full bg-signal px-5 py-2 font-medium text-signal-foreground transition-opacity hover:opacity-90">
                             Let them in
                         </button>
-                        <button onClick={() => handleDecision(request.userId, false)} className="border border-current px-5 py-2 transition-opacity hover:opacity-70">
+                        <button onClick={() => handleDecision(request.userId, false)} className="rounded-full border border-current px-5 py-2 transition-opacity hover:opacity-70">
                             Not now
                         </button>
                     </div>
