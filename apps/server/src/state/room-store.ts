@@ -202,6 +202,14 @@ export const RoomStore = {
         return room;
     },
 
+    removeFromQueue: (roomId: string, index: number): Room | undefined => {
+        const room = rooms.get(roomId);
+        if (!room) return undefined;
+
+        room.queue.splice(index, 1);
+        return room;
+    },
+
     skipTrack: (roomId: string): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;

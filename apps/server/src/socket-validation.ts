@@ -32,6 +32,7 @@ const validators: Record<string, Validator> = {
     [EVENTS.PLAYER_PAUSE]: (p) => isTime(p?.timestamp),
     [EVENTS.PLAYER_SEEK]: (p) => isTime(p?.timestamp),
     [EVENTS.QUEUE_ADD]: (p) => isText(p?.videoId, 200),
+    [EVENTS.QUEUE_REMOVE]: (p) => Number.isInteger(p?.index) && p.index >= 0,
     [EVENTS.QUEUE_UPVOTE]: (p) => isText(p?.videoId, 200),
     [EVENTS.SEARCH_QUERY]: (p) => isText(p?.query, MAX_QUERY),
     [EVENTS.RECOMMENDATIONS_REQUEST]: (p) =>

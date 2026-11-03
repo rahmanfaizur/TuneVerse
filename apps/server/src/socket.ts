@@ -375,6 +375,19 @@ export const setupSocket = (io: Server) => {
             }
         });
 
+        socket.on(EVENTS.QUEUE_REMOVE, (payload: { index: number }) => {
+            const roomId = socketToRoom.get(socket.id);
+            const room = roomId ? RoomStore.getRoom(roomId) : undefined;
+            if (!roomId || !room) return;
+
+            const track = room.queue[payload.index];
+            const canRemove = track && (room.hostId === socket.id || track.addedBy === usernameIn(roomId, socket.id));
+            if (!canRemove) return;
+
+            const updatedRoom = RoomStore.removeFromQueue(roomId, payload.index);
+            if (updatedRoom) io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
+        });
+
         socket.on(EVENTS.QUEUE_UPVOTE, (payload: { videoId: string }) => {
             const roomId = socketToRoom.get(socket.id);
             if (!roomId) return;
