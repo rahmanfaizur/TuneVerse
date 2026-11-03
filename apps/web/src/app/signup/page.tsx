@@ -41,18 +41,18 @@ function SignupForm() {
     };
 
     return (
-        <AuthLayout headline={<>Pull up<br /><em>a chair.</em></>} caption="Same song, same second, everyone in the room.">
-            <form onSubmit={handleSubmit} className="space-y-6">
+        <AuthLayout headline={<>Pull up <em>a chair</em></>} caption="Same song, same second, everyone in the room.">
+            <form onSubmit={handleSubmit} className="space-y-4 rounded-3xl border border-border p-6">
                 <TextField id="username" label="Username" required maxLength={30} autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
                 <TextField id="email" label="Email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 <TextField id="password" label="Password" type="password" required minLength={8} maxLength={72} autoComplete="new-password" hint="At least 8 characters." value={password} onChange={(e) => setPassword(e.target.value)} />
-                {error && <p role="alert" className="text-[15px] text-signal">{error}</p>}
+                {error && <p role="alert" className="text-[15px] font-medium text-red-600 dark:text-red-400">{error}</p>}
                 <Button type="submit" loading={isSubmitting} loadingText="Creating your account" className="w-full">Create account</Button>
             </form>
 
-            <p className="mt-5 text-[15px] text-muted-foreground">
+            <p className="mt-4 text-center text-[15px] text-muted-foreground">
                 Already have one?{" "}
-                <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="text-foreground underline underline-offset-4 transition-colors hover:text-signal">
+                <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="font-medium text-signal underline-offset-4 hover:underline">
                     Sign in
                 </Link>
                 {" "}or join as a guest from there.

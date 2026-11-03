@@ -10,12 +10,12 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     }, [error]);
 
     return (
-        <main className="flex min-h-screen flex-col justify-center px-6 md:px-16">
-            <h1 className="font-serif text-6xl italic leading-none tracking-tight md:text-9xl">Well, that broke.</h1>
-            <p className="mt-6 max-w-md text-lg text-muted-foreground">Something went wrong on our side. Trying again usually fixes it.</p>
-            <div className="mt-8 flex flex-wrap items-center gap-6">
+        <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Something <em>broke</em></h1>
+            <p className="mt-3 max-w-md text-lg text-muted-foreground">It&apos;s on our side. Trying again usually fixes it.</p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-5">
                 <Button onClick={reset}>Try again</Button>
-                <Link href="/lobby" className="text-sm underline underline-offset-4 transition-colors hover:text-signal">Back to the lobby</Link>
+                <Link href="/lobby" className="text-[15px] underline-offset-4 hover:text-signal hover:underline">Back to the lobby</Link>
             </div>
         </main>
     );
