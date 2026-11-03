@@ -1,11 +1,18 @@
 import { fetch, Agent } from "undici";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import SpotifyService from "./spotify";
-import ytsr from "ytsr";
+import { YouTubeService } from "./youtube";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const GEMINI_TIMEOUT_MS = 15000;
+
+// The "latest" alias keeps working when Google retires a specific version, which is
+// what broke this feature last time.
+const model = genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || "gemini-flash-lite-latest",
+    generationConfig: { responseMimeType: "application/json" },
+}, { timeout: GEMINI_TIMEOUT_MS });
 
 interface TrackContext {
     title: string;
@@ -79,46 +86,39 @@ export class RecommendationService {
         const results: RecommendationResult[] = [];
 
         if (source === 'spotify' && spotifyToken) {
-            // Search Spotify for each suggestion
-            for (const suggestion of suggestions) {
+            const found = await Promise.all(suggestions.map(async (suggestion) => {
                 try {
-                    const tracks = await SpotifyService.searchTracks(spotifyToken, `${suggestion.title} ${suggestion.artist}`, 1);
-                    if (tracks.length > 0) {
-                        const track = tracks[0];
-                        results.push({
-                            id: track.id,
-                            title: track.title,
-                            artist: track.artist,
-                            thumbnail: track.albumArt,
-                            uri: track.uri,
-                            source: 'spotify'
-                        });
-                    }
+                    const [track] = await SpotifyService.searchTracks(spotifyToken, `${suggestion.title} ${suggestion.artist}`, 1);
+                    return track && {
+                        id: track.id,
+                        title: track.title,
+                        artist: track.artist,
+                        thumbnail: track.albumArt,
+                        uri: track.uri,
+                        source: 'spotify' as const,
+                    };
                 } catch (e) {
                     console.error(`Failed to find Spotify track: ${suggestion.title}`, e);
                 }
-            }
+            }));
+            results.push(...found.filter((item) => !!item));
         } else {
-            // Search YouTube for each suggestion
-            for (const suggestion of suggestions) {
+            const found = await Promise.all(suggestions.map(async (suggestion) => {
                 try {
-                    const query = `${suggestion.title} ${suggestion.artist} official audio`;
-                    const searchResults = await ytsr(query, { limit: 1 });
-                    const video = searchResults.items.find((i: any) => i.type === 'video') as any;
-
-                    if (video) {
-                        results.push({
-                            id: video.id,
-                            title: video.title,
-                            artist: suggestion.artist, // Use Gemini's artist as YouTube titles can be messy
-                            thumbnail: video.bestThumbnail?.url,
-                            source: 'youtube'
-                        });
-                    }
+                    const [video] = await YouTubeService.search(`${suggestion.title} ${suggestion.artist}`, 1);
+                    return video && {
+                        id: video.id,
+                        title: video.title,
+                        artist: suggestion.artist,
+                        thumbnail: video.thumbnail,
+                        channelTitle: suggestion.artist,
+                        source: 'youtube' as const,
+                    };
                 } catch (e) {
                     console.error(`Failed to find YouTube video: ${suggestion.title}`, e);
                 }
-            }
+            }));
+            results.push(...found.filter((item) => !!item));
         }
 
         // Update cache
@@ -158,16 +158,13 @@ export class RecommendationService {
     }
 
     private static async getHuggingFaceRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
-        // Use Qwen 2.5 7B Instruct - reliable and supported on free tier
-        const modelId = "Qwen/Qwen2.5-7B-Instruct";
+        const modelId = process.env.HF_MODEL || "openai/gpt-oss-20b";
         const apiUrl = "https://router.huggingface.co/v1/chat/completions";
 
         if (!process.env.HF_TOKEN) {
             console.error("HF_TOKEN is missing in environment variables!");
             return [];
         }
-
-        console.log(`Attempting HF request to ${modelId} with token: ${process.env.HF_TOKEN.substring(0, 5)}...`);
 
         let promptContent = `You are a music recommendation engine. The user is listening to: ${seedList}.
 Recommend 5 similar songs that fit the vibe and genre.`;
