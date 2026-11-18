@@ -1,20 +1,34 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
+/* Riso gig poster: two inks on cool paper. See apps/web/DESIGN.md. */
 :root {
-  --background: #faf8f5;
-  --foreground: #1d1b1a;
-  --muted: #f1eee9;
-  --muted-foreground: #6b6660;
-  --border: #e4dfd8;
-  --accent: #1d1b1a;
-  --accent-foreground: #faf8f5;
-  --signal: #0f766e;
-  --signal-foreground: #ffffff;
+  --paper: #f2f3f5;
+  --ink: #111d63;
+  --blue: #2148d6;
+  --pink: #ff3fa4;
+  --wash: #e2e6f3;
+  --soft: #4a5797;
+
+  /* Old names, kept until every page has moved over. */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --muted: var(--wash);
+  --muted-foreground: var(--soft);
+  --border: var(--ink);
+  --accent: var(--ink);
+  --accent-foreground: var(--paper);
+  --signal: var(--pink);
+  --signal-foreground: var(--ink);
 }
 
 @theme inline {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-blue: var(--blue);
+  --color-pink: var(--pink);
+  --color-wash: var(--wash);
+  --color-soft: var(--soft);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -24,20 +38,9 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-signal: var(--signal);
   --color-signal-foreground: var(--signal-foreground);
-  --font-serif: var(--font-serif);
-  --font-sans: var(--font-sans);
-}
 
-.dark {
-  --background: #1e1c1b;
-  --foreground: #f4f1ec;
-  --muted: #2a2725;
-  --muted-foreground: #a8a29a;
-  --border: #3a3633;
-  --accent: #f4f1ec;
-  --accent-foreground: #1e1c1b;
-  --signal: #2dd4bf;
-  --signal-foreground: #0b1f1d;
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-display: var(--font-anton), "Impact", "Arial Narrow", sans-serif;
 }
 
 html {
@@ -45,41 +48,172 @@ html {
 }
 
 ::selection {
-  background: var(--signal);
-  color: var(--signal-foreground);
+  background: var(--pink);
+  color: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  transition: background-color 0.4s ease, color 0.4s ease;
+  background: var(--paper);
+  color: var(--ink);
+  /* The font variables live on <body>, so read them here, not through --font-sans on :root. */
+  font-family: var(--font-archivo), system-ui, sans-serif;
 }
 
-/* The one serif touch: a single word here and there, so it never gets heavy. */
-em {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: 0;
+:focus-visible {
+  outline: 3px solid var(--pink);
+  outline-offset: 2px;
 }
+
+/* ---------- type ---------- */
+
+.display {
+  font-family: var(--font-anton), "Impact", "Arial Narrow", sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.9;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+
+/* Small wide labels, the kind printed on a ticket. */
+.label {
+  font-stretch: 125%;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Links: ink text with a fat pink underline, since pink text fails on paper. */
+.ink-link {
+  text-decoration: underline;
+  text-decoration-color: var(--pink);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+.ink-link:hover {
+  text-decoration-color: var(--blue);
+}
+
+/* ---------- signature 1: misregistered two-ink headline ---------- */
+
+.overprint {
+  position: relative;
+  isolation: isolate;
+  display: block;
+}
+
+.overprint::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  color: var(--pink);
+  transform: translate(0.045em, 0.04em);
+  animation: register 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.1s both;
+  pointer-events: none;
+}
+
+.overprint > span {
+  position: relative;
+  color: var(--blue);
+  mix-blend-mode: multiply;
+}
+
+@keyframes register {
+  from {
+    transform: translate(0.16em, -0.06em);
+  }
+
+  to {
+    transform: translate(0.045em, 0.04em);
+  }
+}
+
+/* ---------- signature 2: duotone artwork ---------- */
+
+.duotone {
+  position: relative;
+  overflow: hidden;
+  background: var(--pink);
+  isolation: isolate;
+}
+
+.duotone img {
+  filter: grayscale(1) contrast(1.15);
+  mix-blend-mode: multiply;
+  transition: filter 0.3s ease;
+}
+
+.duotone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--blue);
+  mix-blend-mode: lighten;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.group:hover .duotone img,
+.duotone:hover img {
+  filter: none;
+  mix-blend-mode: normal;
+}
+
+.group:hover .duotone::after,
+.duotone:hover::after {
+  opacity: 0;
+}
+
+/* ---------- tickets ---------- */
+
+/* A block with a perforated stub. Set --stub to the stub width. */
+.ticket {
+  --stub: 6.5rem;
+  --notch: 9px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--stub);
+  -webkit-mask:
+    radial-gradient(circle at calc(100% - var(--stub)) 0, transparent var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at calc(100% - var(--stub)) 100%, transparent var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+  mask:
+    radial-gradient(circle at calc(100% - var(--stub)) 0, transparent var(--notch), #000 calc(var(--notch) + 0.5px)) top / 100% 51% no-repeat,
+    radial-gradient(circle at calc(100% - var(--stub)) 100%, transparent var(--notch), #000 calc(var(--notch) + 0.5px)) bottom / 100% 51% no-repeat;
+}
+
+.ticket-stub {
+  background-image: linear-gradient(var(--paper) 50%, transparent 50%);
+  background-size: 2px 10px;
+  background-repeat: repeat-y;
+  background-position: left top;
+}
+
+/* ---------- form fields ---------- */
 
 .field {
   width: 100%;
-  border-radius: 0.75rem;
-  background: var(--muted);
-  padding: 0.75rem 1rem;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  padding: 0.7rem 0.9rem;
   outline: none;
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.15s ease;
 }
 
 .field::placeholder {
-  color: var(--muted-foreground);
+  color: var(--soft);
+  opacity: 1;
 }
 
 .field:focus {
-  box-shadow: 0 0 0 2px var(--signal);
+  box-shadow: 0 0 0 3px var(--pink);
 }
+
+/* ---------- motion ---------- */
 
 @keyframes float-up {
   0% {
@@ -101,78 +235,21 @@ em {
   animation: float-up 2s ease-out forwards;
 }
 
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-.animate-marquee {
-  animation: marquee 20s linear infinite;
-}
-
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-spin-slow {
-  animation: spin-slow 12s linear infinite;
-}
-
-@keyframes spin-reverse-slow {
-  from {
-    transform: rotate(360deg);
-  }
-
-  to {
-    transform: rotate(0deg);
-  }
-}
-
-.animate-spin-reverse-slow {
-  animation: spin-reverse-slow 15s linear infinite;
-}
-
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .animate-page-enter {
-  animation: page-enter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-enter 0.3s ease-out both;
 }
 
-@keyframes masthead-rise {
-  from {
-    transform: translateY(105%);
-  }
-
-  to {
-    transform: translateY(0);
-  }
-}
-
-.masthead-letter {
-  animation: masthead-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
+/* The loading bar: a pink block sliding along an ink rule. */
 .loader-rule {
   position: relative;
 }
@@ -181,9 +258,9 @@ em {
   content: "";
   position: absolute;
   inset: 0;
-  background: var(--signal);
+  background: var(--pink);
   transform-origin: left;
-  animation: loader-rule 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: loader-rule 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
 @keyframes loader-rule {
@@ -231,21 +308,7 @@ em {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .animate-page-enter,
-  .masthead-letter,
-  .animate-marquee,
-  .animate-spin-slow,
-  .animate-spin-reverse-slow {
-    animation: none;
-  }
-}
-
-@keyframes dropdown-enter {
+@keyframes drop-in {
   from {
     opacity: 0;
     transform: translateY(-6px);
@@ -258,22 +321,16 @@ em {
 }
 
 .dropdown-enter {
-  animation: dropdown-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: drop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .queue-row {
-  animation: dropdown-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: drop-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dropdown-enter,
-  .queue-row {
-    animation: none;
-  }
-}
-
+/* Waiting blocks: wash with a slow ink-tinted sweep. */
 .skeleton {
-  background: linear-gradient(100deg, var(--muted) 30%, var(--border) 50%, var(--muted) 70%);
+  background: linear-gradient(100deg, var(--wash) 30%, #d3d9ee 50%, var(--wash) 70%);
   background-size: 250% 100%;
   animation: skeleton 1.6s ease-in-out infinite;
 }
@@ -289,7 +346,16 @@ em {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .overprint::before,
+  .animate-page-enter,
+  .dropdown-enter,
+  .queue-row,
+  .skeleton,
+  .loader-rule::after {
     animation: none;
   }
 }
