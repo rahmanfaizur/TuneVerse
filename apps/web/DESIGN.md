@@ -17,7 +17,7 @@ Use this file for every page. If you need something it doesn't cover, add it her
 | `soft` | `#4a5797` | Secondary text on paper or wash (6:1). |
 
 Text on pink is always `ink` (4.7:1). Text on blue or ink is always `paper`.
-Errors use an ink-bordered pink strip and plain words, no red.
+Errors are white strips with a 6px pink left edge and plain words, no red (`<FormError>`).
 
 ## Type
 

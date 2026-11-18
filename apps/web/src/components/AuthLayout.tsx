@@ -1,22 +1,36 @@
 import { ReactNode } from "react";
-import Link from "next/link";
+import Overprint from "./poster/Overprint";
+import SiteHeader from "./poster/SiteHeader";
+import Ticket from "./poster/Ticket";
 
 interface AuthLayoutProps {
-    headline: ReactNode;
+    headline: string;
     caption: string;
     children: ReactNode;
+    /** Shown under the ticket, e.g. the guest form or a link to the other auth page. */
+    after?: ReactNode;
 }
 
-export default function AuthLayout({ headline, caption, children }: AuthLayoutProps) {
+export default function AuthLayout({ headline, caption, children, after }: AuthLayoutProps) {
     return (
-        <main className="flex min-h-screen flex-col items-center justify-center px-5 py-10">
-            <div className="w-full max-w-md">
-                <Link href="/" className="block text-center text-xl font-semibold tracking-tight transition-colors hover:text-signal">TuneVerse</Link>
-                <div className="mt-6 text-center">
-                    <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{headline}</h1>
-                    <p className="mt-1.5 text-muted-foreground">{caption}</p>
+        <main className="mx-auto min-h-screen w-full max-w-6xl px-5 md:px-8">
+            <SiteHeader />
+            <div className="grid items-start gap-8 py-10 md:py-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-16">
+                <div className="lg:pt-6">
+                    <Overprint text={headline} className="text-[clamp(3.75rem,11vw,8rem)]" />
+                    <p className="mt-5 max-w-sm text-lg leading-snug">{caption}</p>
                 </div>
-                <div className="mt-6">{children}</div>
+                <div>
+                    <Ticket
+                        className="bg-wash"
+                        stubWidth="3.25rem"
+                        stubClassName="bg-pink"
+                        stub={<span className="label whitespace-nowrap [writing-mode:vertical-rl]">Admit one</span>}
+                    >
+                        <div className="p-5 md:p-6">{children}</div>
+                    </Ticket>
+                    {after}
+                </div>
             </div>
         </main>
     );
