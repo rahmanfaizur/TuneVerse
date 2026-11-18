@@ -54,7 +54,7 @@ export default function NavigationProgress() {
     return (
         <div
             aria-hidden="true"
-            className={`fixed inset-x-0 top-0 z-[200] h-0.5 origin-left bg-signal ${phase === "running" ? "nav-progress-running" : "nav-progress-finishing"}`}
+            className={`fixed inset-x-0 top-0 z-[200] h-1 origin-left bg-pink ${phase === "running" ? "nav-progress-running" : "nav-progress-finishing"}`}
         />
     );
 }
