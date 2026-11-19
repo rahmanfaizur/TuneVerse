@@ -10,6 +10,7 @@ import Button from "../../components/Button";
 import LoadingScreen from "../../components/LoadingScreen";
 import { startNavigationProgress } from "../../components/NavigationProgress";
 import Spinner from "../../components/Spinner";
+import PosterMessage from "../../components/poster/PosterMessage";
 import { getApiUrl } from "../../lib/api";
 
 const REFRESH_EVERY_MS = 10000;
@@ -128,11 +129,9 @@ export default function LobbyPage() {
 
     if (error) {
         return (
-            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Can&apos;t reach the server</h1>
-                <p className="mt-3 max-w-md text-lg text-muted-foreground">It might be waking up. Give it a moment and try again.</p>
-                <Button onClick={() => window.location.reload()} className="mt-6">Try again</Button>
-            </main>
+            <PosterMessage headline="Lost the signal" text="We can't reach the server. It might be waking up. Give it a moment and try again.">
+                <Button onClick={() => window.location.reload()}>Try again</Button>
+            </PosterMessage>
         );
     }
 

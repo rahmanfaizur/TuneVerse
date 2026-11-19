@@ -10,6 +10,7 @@ import ActiveRoom from "../../../components/ActiveRoom";
 import LoadingScreen from "../../../components/LoadingScreen";
 import Button from "../../../components/Button";
 import Spinner from "../../../components/Spinner";
+import PosterMessage from "../../../components/poster/PosterMessage";
 import { startNavigationProgress } from "../../../components/NavigationProgress";
 
 export default function RoomPage() {
@@ -85,23 +86,27 @@ export default function RoomPage() {
     };
 
     if (error) {
+        // A dropped connection is not the same as a room that's gone.
+        const isConnectionProblem = error.startsWith("Connection failed");
         return (
-            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">This room isn&apos;t <em>here</em></h1>
-                <p className="mt-3 max-w-md text-lg text-muted-foreground">It may have ended, or the code might be wrong. Check it and try again.</p>
-                <Button onClick={backToLobby} className="mt-6">Back to the lobby</Button>
-            </main>
+            <PosterMessage
+                headline={isConnectionProblem ? "Lost the signal" : "This room isn't here"}
+                text={isConnectionProblem
+                    ? "We can't reach the server. It might be waking up. Give it a moment and try again."
+                    : "It may have ended, or the code might be wrong. Check it and try again."}
+            >
+                {isConnectionProblem && <Button onClick={() => window.location.reload()}>Try again</Button>}
+                <Button variant={isConnectionProblem ? "quiet" : "primary"} onClick={backToLobby}>Back to the lobby</Button>
+            </PosterMessage>
         );
     }
 
     if (isPending) {
         return (
-            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-                <Spinner className="text-3xl text-signal" />
-                <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">Knock <em>knock</em></h1>
-                <p className="mt-3 max-w-md text-lg text-muted-foreground">The host needs to let you in. This page will open by itself once they do.</p>
-                <Button variant="outline" onClick={backToLobby} className="mt-6">Never mind</Button>
-            </main>
+            <PosterMessage label="At the door" headline="Knock knock" text="The host needs to let you in. This page opens by itself once they do.">
+                <Spinner className="text-2xl text-ink" />
+                <Button variant="outline" onClick={backToLobby}>Never mind</Button>
+            </PosterMessage>
         );
     }
 
