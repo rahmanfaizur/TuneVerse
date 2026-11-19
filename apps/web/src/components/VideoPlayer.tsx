@@ -228,7 +228,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         {isBlockedByBrowser && (
                             <button
                                 onClick={startListening}
-                                className="absolute inset-0 z-10 flex items-center justify-center bg-black/85 text-2xl font-semibold tracking-tight text-white transition-colors hover:bg-black/75 md:text-5xl"
+                                className="display absolute inset-0 z-10 flex items-center justify-center bg-ink/90 text-5xl text-paper transition-colors hover:bg-ink/80 md:text-7xl"
                             >
                                 Press to listen in
                             </button>
@@ -251,30 +251,30 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
             </div>
 
             {room.playback.videoId && (
-                <div className="relative z-10 flex shrink-0 items-center gap-4 bg-muted px-4 py-3">
+                <div className="relative z-10 flex shrink-0 items-center gap-4 border-t-2 border-ink bg-paper px-4 py-3">
                     {room.hostId === socket?.id ? (
                         <div className="flex shrink-0 items-center gap-3">
-                            <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-signal">
+                            <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-blue">
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>
                             </button>
                             <button
                                 onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
                                 aria-label={room.playback.status === "PLAYING" ? "Pause" : "Play"}
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-signal text-signal-foreground transition-opacity hover:opacity-90"
+                                className="flex h-11 w-11 items-center justify-center rounded-full bg-pink text-ink transition-colors hover:bg-blue hover:text-paper"
                             >
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                                     {room.playback.status === "PLAYING" ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4l14 8-14 8z" />}
                                 </svg>
                             </button>
-                            <button onClick={handleSkip} aria-label="Skip track" className="p-1 transition-colors hover:text-signal">
+                            <button onClick={handleSkip} aria-label="Skip track" className="p-1 transition-colors hover:text-blue">
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
                             </button>
                         </div>
                     ) : null}
 
                     <p className="min-w-0 flex-1 truncate text-sm">
-                        {nowPlaying && <span className="block truncate font-medium">{nowPlaying}</span>}
-                        <span className="block text-muted-foreground">
+                        {nowPlaying && <span className="block truncate font-bold">{nowPlaying}</span>}
+                        <span className="block text-soft">
                             {room.playback.status === "PAUSED" ? "Paused" : "Playing"} on {SOURCE_NAMES[room.playbackSource]}
                         </span>
                     </p>
@@ -289,7 +289,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         </div>
                         <div className="md:hidden">
                             {showMobileReactions && (
-                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-border bg-background p-2 shadow-xl">
+                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 border-2 border-ink bg-paper p-2">
                                     {REACTIONS.map((emoji) => (
                                         <button
                                             key={emoji}
@@ -305,7 +305,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                     ))}
                                 </div>
                             )}
-                            <button onClick={() => setShowMobileReactions((open) => !open)} aria-expanded={showMobileReactions} className="text-sm underline underline-offset-4">
+                            <button onClick={() => setShowMobileReactions((open) => !open)} aria-expanded={showMobileReactions} className="ink-link text-sm font-semibold">
                                 React
                             </button>
                         </div>
