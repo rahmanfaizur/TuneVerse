@@ -7,6 +7,8 @@ import { useSpotify } from "../../context/SpotifyContext";
 import { getApiUrl } from "../../lib/api";
 import Button from "../Button";
 import Spinner from "../Spinner";
+import Artwork from "../poster/Artwork";
+import Segmented from "../poster/Segmented";
 import { MusicResult, MusicSource, SOURCE_NAMES, addToQueue } from "./music";
 
 const SEARCH_DELAY_MS = 350;
@@ -114,24 +116,19 @@ export default function MusicSearch({ socket, source, onSourceChange, inputRef }
     return (
         <section aria-label="Add music" ref={wrapperRef} className="relative">
             <div className="flex items-center justify-between gap-4">
-                <h2 className="text-xl font-semibold tracking-tight">Add a song</h2>
-                <div className="flex rounded-full bg-muted p-1 text-sm" role="group" aria-label="Where to search">
-                    {(["youtube", "spotify"] as const).map((option) => (
-                        <button
-                            key={option}
-                            onClick={() => onSourceChange(option)}
-                            aria-pressed={source === option}
-                            className={`rounded-full px-3.5 py-1 transition-colors ${source === option ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                        >
-                            {SOURCE_NAMES[option]}
-                        </button>
-                    ))}
-                </div>
+                <h2 className="display text-4xl text-blue">Add a song</h2>
+                <Segmented
+                    ariaLabel="Where to search"
+                    options={["youtube", "spotify"] as const}
+                    labels={SOURCE_NAMES}
+                    value={source}
+                    onChange={onSourceChange}
+                />
             </div>
 
             {showSpotifyConnect ? (
-                <div className="mt-3 flex flex-col items-start justify-between gap-4 rounded-2xl bg-muted p-5 sm:flex-row sm:items-center">
-                    <p className="max-w-md text-[15px] leading-snug text-muted-foreground">
+                <div className="mt-3 flex flex-col items-start justify-between gap-4 bg-wash p-5 sm:flex-row sm:items-center">
+                    <p className="max-w-md text-[15px] leading-snug">
                         Connect Spotify to search it here. You&apos;ll need Premium and an approved account. YouTube works for everyone.
                     </p>
                     <Button onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="shrink-0">
@@ -150,34 +147,29 @@ export default function MusicSearch({ socket, source, onSourceChange, inputRef }
                         aria-label={`Search ${SOURCE_NAMES[source]}`}
                         className="field !pr-10 text-[17px]"
                     />
-                    {isSearching && <Spinner className="absolute right-3.5 top-3.5 text-lg text-signal" />}
+                    {isSearching && <Spinner className="absolute right-3.5 top-3.5 text-lg text-ink" />}
 
                     {isOpen && query.trim() && (
-                        <div className="dropdown-enter absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto rounded-2xl border border-border bg-background shadow-2xl">
+                        <div className="dropdown-enter absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto border-2 border-ink bg-paper">
                             {results.map((item) => (
                                 <button
                                     key={item.id}
                                     onClick={() => add(item)}
-                                    className="group flex w-full items-center gap-4 border-b border-border p-3 text-left transition-colors last:border-0 hover:bg-muted"
+                                    className="group flex w-full items-center gap-4 border-b-2 border-wash p-3 text-left transition-colors last:border-0 hover:bg-wash"
                                 >
-                                    {item.thumbnail ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={item.thumbnail} alt="" className="h-11 w-[4.5rem] shrink-0 rounded-lg object-cover" />
-                                    ) : (
-                                        <span className="h-11 w-[4.5rem] shrink-0 rounded-lg bg-muted" />
-                                    )}
+                                    <Artwork src={item.thumbnail} className="h-11 w-[4.5rem] shrink-0" />
                                     <span className="min-w-0 flex-1">
                                         <span className="block truncate text-[15px]">{item.title}</span>
-                                        <span className="block truncate text-sm text-muted-foreground">{item.channelTitle}</span>
+                                        <span className="block truncate text-sm text-soft">{item.channelTitle}</span>
                                     </span>
-                                    <span className="shrink-0 text-sm font-medium text-signal">Add</span>
+                                    <span className="label shrink-0 bg-pink px-2.5 py-1.5 text-ink">Add</span>
                                 </button>
                             ))}
                             {!isSearching && results.length === 0 && (
-                                <p className="p-4 text-[15px] text-muted-foreground">Nothing found for that. Try other words.</p>
+                                <p className="p-4 text-[15px]">Nothing found for that. Try other words.</p>
                             )}
                             {isSearching && results.length === 0 && (
-                                <p className="p-4 text-[15px] text-muted-foreground">Searching {SOURCE_NAMES[source]}...</p>
+                                <p className="p-4 text-[15px] text-soft">Searching {SOURCE_NAMES[source]}…</p>
                             )}
                         </div>
                     )}

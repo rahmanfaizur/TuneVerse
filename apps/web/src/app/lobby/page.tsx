@@ -13,6 +13,7 @@ import Spinner from "../../components/Spinner";
 import Artwork from "../../components/poster/Artwork";
 import Overprint from "../../components/poster/Overprint";
 import PosterMessage from "../../components/poster/PosterMessage";
+import Segmented from "../../components/poster/Segmented";
 import SiteHeader from "../../components/poster/SiteHeader";
 import Ticket from "../../components/poster/Ticket";
 import { getApiUrl } from "../../lib/api";
@@ -252,22 +253,16 @@ export default function LobbyPage() {
             <section className="pb-20 pt-12">
                 <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-ink pb-3">
                     <h2 className="display text-4xl text-blue">More rooms</h2>
-                    <div className="flex border-2 border-ink text-sm font-bold" role="group" aria-label="Which rooms to show">
-                        {(["all", "mine"] as const).map((option) => (
-                            <button
-                                key={option}
-                                aria-pressed={filter === option}
-                                onClick={() => {
-                                    if (option === filter) return;
-                                    setRooms(null);
-                                    setFilter(option);
-                                }}
-                                className={`px-4 py-1.5 transition-colors ${filter === option ? "bg-ink text-paper" : "text-ink hover:bg-wash"}`}
-                            >
-                                {option === "all" ? "Everyone" : "Yours"}
-                            </button>
-                        ))}
-                    </div>
+                    <Segmented
+                        ariaLabel="Which rooms to show"
+                        options={["all", "mine"] as const}
+                        labels={{ all: "Everyone", mine: "Yours" }}
+                        value={filter}
+                        onChange={(option) => {
+                            setRooms(null);
+                            setFilter(option);
+                        }}
+                    />
                 </div>
 
                 {isFirstLoad ? (
