@@ -119,16 +119,16 @@ export default function RoomPage() {
     return (
         <main className="relative min-h-screen">
             {request && room.hostId === socket?.id && (
-                <div className="dropdown-enter fixed inset-x-0 top-0 z-50 flex flex-wrap items-center justify-between gap-3 bg-accent px-5 py-3.5 text-accent-foreground shadow-xl md:px-10">
+                <div className="dropdown-enter fixed inset-x-0 top-0 z-50 flex flex-wrap items-center justify-between gap-3 border-b-4 border-pink bg-ink px-5 py-3.5 text-paper md:px-10">
                     <p className="text-lg">
-                        <span className="font-semibold">{request.username}</span> wants to come in
-                        {joinRequests.length > 1 && <span className="opacity-70"> (+{joinRequests.length - 1} more)</span>}
+                        <span className="font-bold">{request.username}</span> is at the door
+                        {joinRequests.length > 1 && <span className="opacity-75"> (+{joinRequests.length - 1} more)</span>}
                     </p>
                     <div className="flex gap-3 text-sm">
-                        <button onClick={() => handleDecision(request.userId, true)} className="rounded-full bg-signal px-5 py-2 font-medium text-signal-foreground transition-opacity hover:opacity-90">
+                        <Button onClick={() => handleDecision(request.userId, true)} className="!px-5 !py-2 !text-sm">
                             Let them in
-                        </button>
-                        <button onClick={() => handleDecision(request.userId, false)} className="rounded-full border border-current px-5 py-2 transition-opacity hover:opacity-70">
+                        </Button>
+                        <button onClick={() => handleDecision(request.userId, false)} className="border-2 border-paper px-5 py-2 font-bold transition-colors hover:bg-paper hover:text-ink">
                             Not now
                         </button>
                     </div>
