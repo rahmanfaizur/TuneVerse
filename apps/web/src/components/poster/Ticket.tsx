@@ -14,8 +14,8 @@ export default function Ticket({ stub, children, as: Tag = "div", className = ""
     const style = stubWidth ? ({ "--stub": stubWidth } as CSSProperties) : undefined;
     return (
         <Tag {...rest} style={style} className={`ticket ${className}`}>
-            <div className="min-w-0">{children}</div>
-            <div className={`ticket-stub flex flex-col items-center justify-center text-center ${stubClassName}`}>{stub}</div>
+            <span className="block min-w-0">{children}</span>
+            <span className={`ticket-stub flex flex-col items-center justify-center text-center ${stubClassName}`}>{stub}</span>
         </Tag>
     );
 }
