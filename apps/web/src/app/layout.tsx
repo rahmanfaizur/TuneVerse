@@ -4,6 +4,8 @@ import { SocketProvider } from "../context/SocketContext";
 import { AuthProvider } from "../context/AuthContext";
 import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "next-themes";
+import { PAPER_ATTRIBUTE_VALUES, PAPERS } from "../components/poster/papers";
 import { Anton, Archivo } from "next/font/google";
 import NavigationProgress from "../components/NavigationProgress";
 
@@ -27,7 +29,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f2f3f5",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f3f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1647" },
+  ],
 };
 
 export default function RootLayout({
@@ -36,29 +41,39 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${anton.variable} ${archivo.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <SpotifyProvider>
-            <SocketProvider>
-              <NavigationProgress />
-              {children}
-              <Toaster
-                position="bottom-center"
-                toastOptions={{
-                  style: {
-                    background: "var(--ink)",
-                    color: "var(--paper)",
-                    border: "none",
-                    borderRadius: 0,
-                    fontFamily: "var(--font-sans)",
-                    fontSize: 15,
-                  },
-                }}
-              />
-            </SocketProvider>
-          </SpotifyProvider>
-        </AuthProvider>
+        {/* "system" picks day or night from the device; a picked paper is remembered. */}
+        <ThemeProvider
+          attribute="data-paper"
+          themes={PAPERS.map((paper) => paper.id)}
+          value={PAPER_ATTRIBUTE_VALUES}
+          defaultTheme="system"
+          enableSystem
+          storageKey="tuneverse-paper"
+        >
+          <AuthProvider>
+            <SpotifyProvider>
+              <SocketProvider>
+                <NavigationProgress />
+                {children}
+                <Toaster
+                  position="bottom-center"
+                  toastOptions={{
+                    style: {
+                      background: "var(--ink)",
+                      color: "var(--paper)",
+                      border: "none",
+                      borderRadius: 0,
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 15,
+                    },
+                  }}
+                />
+              </SocketProvider>
+            </SpotifyProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

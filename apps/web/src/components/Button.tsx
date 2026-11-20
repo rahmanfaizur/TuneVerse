@@ -4,7 +4,7 @@ import Spinner from "./Spinner";
 type Variant = "primary" | "outline" | "quiet";
 
 const VARIANTS: Record<Variant, string> = {
-    primary: "bg-pink px-6 py-3 font-bold text-on-pink not-disabled:hover:bg-blue not-disabled:hover:text-paper",
+    primary: "btn-pink bg-pink px-6 py-3 font-bold text-on-pink not-disabled:hover:bg-blue not-disabled:hover:text-paper",
     outline: "border-2 border-ink px-6 py-2.5 font-bold text-ink not-disabled:hover:bg-ink not-disabled:hover:text-paper",
     quiet: "ink-link font-semibold text-ink",
 };

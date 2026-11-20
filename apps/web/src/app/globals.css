@@ -19,6 +19,72 @@
   --print-blend: multiply; /* how the two headline inks mix */
 }
 
+/* ---------- the four papers (html[data-paper]) ---------- */
+
+[data-paper="blush"] {
+  --paper: #fbdde9;
+  --wash: #f6cadc;
+  --wash-strong: #f0b8cf;
+  --soft: #45518f;
+}
+
+/* Night print: the ink becomes the paper, and the lighter inks sit on top of it. */
+[data-paper="night"] {
+  --paper: #0e1647;
+  --ink: #eef0f7;
+  --blue: #7d95ff;
+  --pink: #ff4fac;
+  --wash: #18225c;
+  --wash-strong: #222d70;
+  --soft: #a9b3db;
+  --on-pink: #0e1647;
+  --field: #0a1036;
+  --rule: #3d4a8f;
+  --stage: #070b26;
+  --print-blend: normal;
+  color-scheme: dark;
+}
+
+[data-paper="black"] {
+  --paper: #121216;
+  --ink: #f2f3f5;
+  --blue: #6f8bff;
+  --pink: #ff3fa4;
+  --wash: #1d1d24;
+  --wash-strong: #2a2a34;
+  --soft: #a7a9b4;
+  --on-pink: #121216;
+  --field: #0b0b0e;
+  --rule: #3a3a46;
+  --stage: #060608;
+  --print-blend: normal;
+  color-scheme: dark;
+}
+
+/* Before the page script picks a paper, a dark device still gets night print. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-paper]) {
+    --paper: #0e1647;
+    --ink: #eef0f7;
+    --blue: #7d95ff;
+    --pink: #ff4fac;
+    --wash: #18225c;
+    --wash-strong: #222d70;
+    --soft: #a9b3db;
+    --on-pink: #0e1647;
+    --field: #0a1036;
+    --rule: #3d4a8f;
+    --stage: #070b26;
+    --print-blend: normal;
+    color-scheme: dark;
+  }
+}
+
+/* On blush the pink buttons sit on pink paper, so give them an ink edge. */
+[data-paper="blush"] .btn-pink {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
 @theme inline {
   --color-paper: var(--paper);
   --color-ink: var(--ink);
@@ -48,6 +114,7 @@ html {
 
 body {
   background: var(--paper);
+  transition: background-color 0.25s ease, color 0.25s ease;
   color: var(--ink);
   /* The font variables live on <body>, so read them here, not through --font-sans on :root. */
   font-family: var(--font-archivo), system-ui, sans-serif;
