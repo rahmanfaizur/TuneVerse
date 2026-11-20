@@ -117,7 +117,7 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
     if (!isConnected || needsPremium) {
         const artwork = room.playback.meta?.artwork;
         return (
-            <div className="flex h-full w-full items-center gap-6 overflow-hidden bg-ink p-6 text-paper md:p-10">
+            <div className="flex h-full w-full items-center gap-6 overflow-hidden bg-stage p-6 text-on-stage md:p-10">
                 {artwork && <Artwork src={artwork} className="hidden aspect-square h-3/5 shrink-0 sm:block" />}
                 <div className="min-w-0 max-w-lg">
                     <p className="label opacity-85">Playing on Spotify</p>
@@ -152,7 +152,7 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
 
     return (
         // Laid out in a row so the cover, title and progress all fit inside a 16:9 frame.
-        <div className="flex h-full w-full items-center gap-5 overflow-hidden bg-ink p-5 text-paper md:gap-8 md:p-10">
+        <div className="flex h-full w-full items-center gap-5 overflow-hidden bg-stage p-5 text-on-stage md:gap-8 md:p-10">
             {displayImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={displayImage} alt="" className="aspect-square h-full max-h-80 shrink-0 object-cover" />

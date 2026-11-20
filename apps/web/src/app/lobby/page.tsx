@@ -170,7 +170,7 @@ export default function LobbyPage() {
                             as="button"
                             onClick={() => openRoom(cover.id)}
                             disabled={!!joiningId}
-                            className="group h-full min-h-[18rem] w-full bg-pink text-left text-ink"
+                            className="group h-full min-h-[18rem] w-full bg-pink text-left text-on-pink"
                             stubWidth="6rem"
                             stubClassName="bg-blue text-paper px-2 transition-colors group-hover:bg-ink"
                             stub={
@@ -229,7 +229,7 @@ export default function LobbyPage() {
                         </Button>
                     </form>
 
-                    <form onSubmit={joinByCode} className="border-2 border-ink p-5 md:p-6">
+                    <form onSubmit={joinByCode} className="border-2 border-rule p-5 md:p-6">
                         <label htmlFor="room-code" className="display block text-3xl text-ink">Got a code?</label>
                         <p className="mt-1 text-[15px]">Type it in, or paste an invite link.</p>
                         <div className="mt-4 flex gap-2">
@@ -251,7 +251,7 @@ export default function LobbyPage() {
             </div>
 
             <section className="pb-20 pt-12">
-                <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-ink pb-3">
+                <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-rule pb-3">
                     <h2 className="display text-4xl text-blue">More rooms</h2>
                     <Segmented
                         ariaLabel="Which rooms to show"
@@ -281,9 +281,9 @@ export default function LobbyPage() {
                                     as="button"
                                     onClick={() => openRoom(room.id)}
                                     disabled={!!joiningId}
-                                    className="group w-full bg-wash text-left transition-colors hover:bg-[#d3d9ee]"
+                                    className="group w-full bg-wash text-left transition-colors hover:bg-wash-strong"
                                     stubWidth="4.25rem"
-                                    stubClassName="bg-pink"
+                                    stubClassName="bg-pink text-on-pink"
                                     stub={
                                         joiningId === room.id ? <Spinner className="text-xl" /> : (
                                             <>

@@ -77,7 +77,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                         onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
                                         aria-label={`Vote for ${track.title}, ${track.votes} votes so far`}
                                         aria-pressed={hasVoted}
-                                        className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-ink" : "text-soft hover:bg-wash hover:text-ink"}`}
+                                        className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-on-pink" : "text-soft hover:bg-wash hover:text-on-pink"}`}
                                     >
                                         <svg viewBox="0 0 12 8" className="mb-1 h-2 w-3" fill="currentColor" aria-hidden="true"><path d="M6 0l6 8H0z" /></svg>
                                         {track.votes || 0}
@@ -89,7 +89,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 )}
 
                 {suggestions.length > 0 && (
-                    <div className="dropdown-enter border-b-2 border-ink bg-wash p-4">
+                    <div className="dropdown-enter border-b-2 border-rule bg-wash p-4">
                         <div className="flex items-baseline justify-between">
                             <h3 className="display text-2xl text-blue">You might like</h3>
                             <button onClick={() => setSuggestions([])} className="ink-link text-xs font-semibold">Close</button>
@@ -108,7 +108,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                             <span className="block truncate text-sm group-hover:underline">{item.title}</span>
                                             <span className="block truncate text-xs text-soft">{item.artist}</span>
                                         </span>
-                                        <span className="label shrink-0 bg-pink px-2 py-1 text-ink">Add</span>
+                                        <span className="label shrink-0 bg-pink px-2 py-1 text-on-pink">Add</span>
                                     </button>
                                 </li>
                             ))}
@@ -117,9 +117,9 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 )}
             </div>
 
-            <div className="relative border-t-2 border-ink p-4">
+            <div className="relative border-t-2 border-rule p-4">
                 {showMoods && (
-                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 border-2 border-ink bg-paper p-3">
+                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 border-2 border-rule bg-paper p-3">
                         <div className="flex flex-wrap gap-2">
                             {MOODS.map((mood) => (
                                 <button

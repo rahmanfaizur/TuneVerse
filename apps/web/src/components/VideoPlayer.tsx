@@ -229,7 +229,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         {isBlockedByBrowser && (
                             <button
                                 onClick={startListening}
-                                className="display absolute inset-0 z-10 flex items-center justify-center bg-ink/90 text-5xl text-paper transition-colors hover:bg-ink/80 md:text-7xl"
+                                className="display absolute inset-0 z-10 flex items-center justify-center bg-stage/90 text-5xl text-on-stage transition-colors hover:bg-stage/80 md:text-7xl"
                             >
                                 Press to listen in
                             </button>
@@ -252,7 +252,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
             </div>
 
             {room.playback.videoId && (
-                <div className="relative z-10 flex shrink-0 items-center gap-4 border-t-2 border-ink bg-paper px-4 py-3">
+                <div className="relative z-10 flex shrink-0 items-center gap-4 border-t-2 border-rule bg-paper px-4 py-3">
                     {room.hostId === socket?.id ? (
                         <div className="flex shrink-0 items-center gap-3">
                             <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-blue">
@@ -261,7 +261,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                             <button
                                 onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
                                 aria-label={room.playback.status === "PLAYING" ? "Pause" : "Play"}
-                                className="flex h-11 w-11 items-center justify-center rounded-full bg-pink text-ink transition-colors hover:bg-blue hover:text-paper"
+                                className="flex h-11 w-11 items-center justify-center rounded-full bg-pink text-on-pink transition-colors hover:bg-blue hover:text-paper"
                             >
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                                     {room.playback.status === "PLAYING" ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4l14 8-14 8z" />}
@@ -290,7 +290,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         </div>
                         <div className="md:hidden">
                             {showMobileReactions && (
-                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 border-2 border-ink bg-paper p-2">
+                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 border-2 border-rule bg-paper p-2">
                                     {REACTIONS.map((emoji) => (
                                         <button
                                             key={emoji}

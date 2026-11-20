@@ -150,7 +150,7 @@ export default function MusicSearch({ socket, source, onSourceChange, inputRef }
                     {isSearching && <Spinner className="absolute right-3.5 top-3.5 text-lg text-ink" />}
 
                     {isOpen && query.trim() && (
-                        <div className="dropdown-enter absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto border-2 border-ink bg-paper">
+                        <div className="dropdown-enter absolute inset-x-0 top-full z-40 mt-2 max-h-96 overflow-y-auto border-2 border-rule bg-paper">
                             {results.map((item) => (
                                 <button
                                     key={item.id}
@@ -162,7 +162,7 @@ export default function MusicSearch({ socket, source, onSourceChange, inputRef }
                                         <span className="block truncate text-[15px]">{item.title}</span>
                                         <span className="block truncate text-sm text-soft">{item.channelTitle}</span>
                                     </span>
-                                    <span className="label shrink-0 bg-pink px-2.5 py-1.5 text-ink">Add</span>
+                                    <span className="label shrink-0 bg-pink px-2.5 py-1.5 text-on-pink">Add</span>
                                 </button>
                             ))}
                             {!isSearching && results.length === 0 && (

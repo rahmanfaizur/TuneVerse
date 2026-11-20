@@ -52,7 +52,7 @@ export default function Home() {
 
         <Ticket
           aria-label="What an invite looks like"
-          className="mx-auto w-full max-w-sm -rotate-3 bg-pink text-ink lg:max-w-none"
+          className="mx-auto w-full max-w-sm -rotate-3 bg-pink text-on-pink lg:max-w-none"
           stubClassName="bg-blue text-paper px-2 py-5"
           stubWidth="6.5rem"
           stub={
@@ -72,11 +72,11 @@ export default function Home() {
         </Ticket>
       </section>
 
-      <section aria-labelledby="line-up" className="border-t-2 border-ink py-10 md:py-14">
+      <section aria-labelledby="line-up" className="border-t-2 border-rule py-10 md:py-14">
         <h2 id="line-up" className="label text-soft">The line-up</h2>
         <ul className="mt-4">
           {LINE_UP.map((act, i) => (
-            <li key={act.title} className="grid gap-1 border-b-2 border-ink py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:items-end md:gap-8">
+            <li key={act.title} className="grid gap-1 border-b-2 border-rule py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:items-end md:gap-8">
               <h3 className={`display text-blue ${i === 0 ? "text-5xl md:text-7xl" : "text-4xl md:text-5xl"}`}>{act.title}</h3>
               <p className="max-w-sm text-[15px] leading-snug md:pb-1">{act.text}</p>
             </li>
@@ -99,7 +99,7 @@ export default function Home() {
         </ol>
       </section>
 
-      <footer className="flex flex-col justify-between gap-2 border-t-2 border-ink py-5 text-sm sm:flex-row">
+      <footer className="flex flex-col justify-between gap-2 border-t-2 border-rule py-5 text-sm sm:flex-row">
         <span>© {new Date().getFullYear()} TuneVerse</span>
         <a href="https://github.com/rahmanfaizur/TuneVerse" className="ink-link">GitHub</a>
       </footer>

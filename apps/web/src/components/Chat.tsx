@@ -61,7 +61,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                 </div>
-                                <p className={`mt-1 break-words px-3.5 py-2 text-[15px] leading-snug ${isMe ? "bg-pink text-ink" : "bg-wash"}`}>
+                                <p className={`mt-1 break-words px-3.5 py-2 text-[15px] leading-snug ${isMe ? "bg-pink text-on-pink" : "bg-wash"}`}>
                                     {msg.text}
                                 </p>
                             </div>
@@ -70,7 +70,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                 )}
             </div>
 
-            <form onSubmit={sendMessage} className="flex items-center gap-2 border-t-2 border-ink p-3">
+            <form onSubmit={sendMessage} className="flex items-center gap-2 border-t-2 border-rule p-3">
                 <input
                     type="text"
                     value={inputText}
@@ -83,7 +83,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                 <button
                     type="submit"
                     disabled={!inputText.trim()}
-                    className="shrink-0 bg-pink px-3 py-2 text-sm font-bold text-ink transition-colors enabled:hover:bg-blue enabled:hover:text-paper disabled:opacity-40"
+                    className="shrink-0 bg-pink px-3 py-2 text-sm font-bold text-on-pink transition-colors enabled:hover:bg-blue enabled:hover:text-paper disabled:opacity-40"
                 >
                     Send
                 </button>

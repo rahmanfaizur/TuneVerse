@@ -87,7 +87,7 @@ export default function ActiveRoom({ username }: { username: string }) {
 
     return (
         <div className="mx-auto w-full max-w-[1200px] px-5 pb-16 md:px-8">
-            <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b-2 border-ink py-4">
+            <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b-2 border-rule py-4">
                 <Link href="/lobby" onClick={() => leaveRoom()} className="display text-[1.75rem] leading-none transition-colors hover:text-blue">
                     TuneVerse
                 </Link>
@@ -116,7 +116,7 @@ export default function ActiveRoom({ username }: { username: string }) {
                     as="button"
                     onClick={copyInvite}
                     title="Copy the invite link"
-                    className="group bg-pink text-left text-ink"
+                    className="group bg-pink text-left text-on-pink"
                     stubWidth="6.5rem"
                     stubClassName="bg-blue px-2 text-paper transition-colors group-hover:bg-ink"
                     stub={<span className="font-bold tracking-widest">{room.id}</span>}
@@ -130,14 +130,14 @@ export default function ActiveRoom({ username }: { username: string }) {
 
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
                 <div className="min-w-0 space-y-6">
-                    <div className="overflow-hidden border-2 border-ink">
+                    <div className="overflow-hidden border-2 border-rule">
                         <VideoPlayer room={room} socket={socket} onPickSource={pickSource} />
                     </div>
                     <MusicSearch socket={socket} source={source} onSourceChange={setSource} inputRef={searchInputRef} />
                 </div>
 
-                <aside className="flex h-[30rem] flex-col overflow-hidden border-2 border-ink lg:sticky lg:top-4 lg:h-[calc(100vh-6rem)] lg:max-h-[42rem]">
-                    <div role="tablist" className="flex shrink-0 border-b-2 border-ink">
+                <aside className="flex h-[30rem] flex-col overflow-hidden border-2 border-rule lg:sticky lg:top-4 lg:h-[calc(100vh-6rem)] lg:max-h-[42rem]">
+                    <div role="tablist" className="flex shrink-0 border-b-2 border-rule">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
@@ -148,7 +148,7 @@ export default function ActiveRoom({ username }: { username: string }) {
                             >
                                 {tab.label}
                                 {!!tab.badge && (
-                                    <span className={`ml-1.5 text-xs ${tab.id === "chat" ? "bg-pink px-1.5 py-0.5 text-ink" : "opacity-70"}`}>
+                                    <span className={`ml-1.5 text-xs ${tab.id === "chat" ? "bg-pink px-1.5 py-0.5 text-on-pink" : "opacity-70"}`}>
                                         {tab.badge}
                                     </span>
                                 )}
@@ -175,7 +175,7 @@ export default function ActiveRoom({ username }: { username: string }) {
                                             {user.username}
                                             {user.id === socket?.id && <span className="text-soft"> (you)</span>}
                                         </span>
-                                        {room.hostId === user.id && <span className="label bg-pink px-2 py-1">Host</span>}
+                                        {room.hostId === user.id && <span className="label bg-pink text-on-pink px-2 py-1">Host</span>}
                                     </li>
                                 ))}
                             </ul>

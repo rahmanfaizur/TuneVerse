@@ -24,7 +24,7 @@ export default function AuthLayout({ headline, caption, children, after }: AuthL
                     <Ticket
                         className="bg-wash"
                         stubWidth="3.25rem"
-                        stubClassName="bg-pink"
+                        stubClassName="bg-pink text-on-pink"
                         stub={<span className="label whitespace-nowrap [writing-mode:vertical-rl]">Admit one</span>}
                     >
                         <div className="p-5 md:p-6">{children}</div>

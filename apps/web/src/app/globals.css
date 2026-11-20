@@ -8,6 +8,15 @@
   --pink: #ff3fa4;
   --wash: #e2e6f3;
   --soft: #4a5797;
+
+  /* Roles, so each paper can set them its own way. */
+  --on-pink: #111d63; /* text printed on pink */
+  --wash-strong: #d3d9ee; /* hover on wash */
+  --field: #ffffff; /* inside inputs */
+  --rule: #111d63; /* dividers and panel edges */
+  --stage: #111d63; /* video and spotify area, always dark */
+  --on-stage: #f2f3f5;
+  --print-blend: multiply; /* how the two headline inks mix */
 }
 
 @theme inline {
@@ -17,6 +26,12 @@
   --color-pink: var(--pink);
   --color-wash: var(--wash);
   --color-soft: var(--soft);
+  --color-on-pink: var(--on-pink);
+  --color-wash-strong: var(--wash-strong);
+  --color-field: var(--field);
+  --color-rule: var(--rule);
+  --color-stage: var(--stage);
+  --color-on-stage: var(--on-stage);
 
   --font-sans: var(--font-archivo), system-ui, sans-serif;
   --font-display: var(--font-anton), "Impact", "Arial Narrow", sans-serif;
@@ -28,7 +43,7 @@ html {
 
 ::selection {
   background: var(--pink);
-  color: var(--ink);
+  color: var(--on-pink);
 }
 
 body {
@@ -97,7 +112,7 @@ body {
 .overprint > span {
   position: relative;
   color: var(--blue);
-  mix-blend-mode: multiply;
+  mix-blend-mode: var(--print-blend);
 }
 
 @keyframes register {
@@ -176,7 +191,7 @@ body {
   width: 100%;
   border: 2px solid var(--ink);
   border-radius: 0;
-  background: #fff;
+  background: var(--field);
   color: var(--ink);
   padding: 0.7rem 0.9rem;
   outline: none;
@@ -310,7 +325,7 @@ body {
 
 /* Waiting blocks: wash with a slow ink-tinted sweep. */
 .skeleton {
-  background: linear-gradient(100deg, var(--wash) 30%, #d3d9ee 50%, var(--wash) 70%);
+  background: linear-gradient(100deg, var(--wash) 30%, var(--wash-strong) 50%, var(--wash) 70%);
   background-size: 250% 100%;
   animation: skeleton 1.6s ease-in-out infinite;
 }
