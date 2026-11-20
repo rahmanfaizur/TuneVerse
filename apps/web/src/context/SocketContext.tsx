@@ -73,7 +73,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         socketInstance.on(EVENTS.ERROR, (payload: { message: string }) => {
-            console.error("🚨 Socket Error:", payload.message);
+            console.error("Socket error:", payload.message);
             setError(payload.message);
         });
 
@@ -82,7 +82,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         socketInstance.on("connect_error", (err) => {
-            console.error("🚨 Connection Error:", err.message);
+            console.error("Connection error:", err.message);
             setError(`Connection failed: ${err.message}`);
             setIsConnected(false);
         });

@@ -9,6 +9,7 @@ import { SyncEngine } from "../lib/sync-engine";
 import PlayPicker from "./room/PlayPicker";
 import { MusicSource, SOURCE_NAMES } from "./room/music";
 
+// The reactions people send are emoji on purpose; they are content, not icons. avoid-ai-design-ignore: I2
 const REACTIONS = ["🔥", "❤️", "😂", "😮", "🎉"];
 const YT_PLAYING = 1;
 
