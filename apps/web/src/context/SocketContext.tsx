@@ -73,7 +73,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
         socketInstance.on(EVENTS.ERROR, (payload: { message: string }) => {
-            console.error("Socket error:", payload.message);
+            // Expected cases like "Room not found" are shown on the page, so this is only a warning.
+            console.warn("Socket error:", payload.message);
             setError(payload.message);
         });
 
