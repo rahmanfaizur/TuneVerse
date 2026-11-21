@@ -30,8 +30,11 @@ export default function ActiveRoom({ username }: { username: string }) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLeaving, setIsLeaving] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    // The chat listener below is set up once, so it reads the open tab through a ref.
     const activeTabRef = useRef(activeTab);
-    activeTabRef.current = activeTab;
+    useEffect(() => {
+        activeTabRef.current = activeTab;
+    }, [activeTab]);
 
     useEffect(() => {
         if (!socket) return;

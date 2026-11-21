@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 const START_EVENT = "tuneverse:navigation-start";
@@ -15,13 +15,16 @@ type Phase = "idle" | "running" | "finishing";
 export default function NavigationProgress() {
     const pathname = usePathname();
     const [phase, setPhase] = useState<Phase>("idle");
-    const startedOn = useRef(pathname);
+    const [lastPathname, setLastPathname] = useState(pathname);
+
+    // When the page actually changes, finish the bar. Done while rendering, so there's no extra pass.
+    if (pathname !== lastPathname) {
+        setLastPathname(pathname);
+        if (phase === "running") setPhase("finishing");
+    }
 
     useEffect(() => {
-        const start = () => {
-            startedOn.current = window.location.pathname;
-            setPhase("running");
-        };
+        const start = () => setPhase("running");
 
         const handleClick = (e: MouseEvent) => {
             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
@@ -42,12 +45,10 @@ export default function NavigationProgress() {
     }, []);
 
     useEffect(() => {
-        if (phase !== "running" || pathname === startedOn.current) return;
-
-        setPhase("finishing");
+        if (phase !== "finishing") return;
         const timer = setTimeout(() => setPhase("idle"), 450);
         return () => clearTimeout(timer);
-    }, [pathname, phase]);
+    }, [phase]);
 
     if (phase === "idle") return null;
 

@@ -82,32 +82,40 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
         }
     };
 
+    // The effect below should only run when playback changes, so it calls the latest checkDrift through a ref.
+    const checkDriftRef = useRef(checkDrift);
+    useEffect(() => {
+        checkDriftRef.current = checkDrift;
+    });
+
     // 3. Handle External Updates (Room Changed)
     useEffect(() => {
         if (!isReady || !playerRef.current) return;
 
         // If status changed (Play <-> Pause), force an immediate drift check
-        checkDrift();
+        checkDriftRef.current();
     }, [room.playback, isReady]);
 
     // Browsers often block sound until someone interacts with the page, which would
     // leave a new listener sitting in silence without knowing why.
-    const [isBlockedByBrowser, setIsBlockedByBrowser] = useState(false);
+    // Remember which moment got blocked, so a new song or a pause clears it without an extra reset.
+    const playbackKey = `${room.playback.videoId}|${room.playback.status}|${room.playbackSource}|${isReady}`;
+    const [blockedAt, setBlockedAt] = useState<string | null>(null);
+    const isBlockedByBrowser = blockedAt === playbackKey;
 
     useEffect(() => {
-        setIsBlockedByBrowser(false);
         if (!isReady || room.playbackSource !== "youtube" || room.playback.status !== "PLAYING") return;
 
         const timer = setTimeout(() => {
             const state = playerRef.current?.getInternalPlayer()?.getPlayerState?.();
-            if (state !== undefined && state !== YT_PLAYING) setIsBlockedByBrowser(true);
+            if (state !== undefined && state !== YT_PLAYING) setBlockedAt(playbackKey);
         }, 2500);
         return () => clearTimeout(timer);
-    }, [isReady, room.playback.status, room.playback.videoId, room.playbackSource]);
+    }, [isReady, room.playback.status, room.playback.videoId, room.playbackSource, playbackKey]);
 
     const startListening = () => {
         playerRef.current?.getInternalPlayer()?.playVideo?.();
-        setIsBlockedByBrowser(false);
+        setBlockedAt(null);
     };
 
     // 4. User Controls
@@ -215,7 +223,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                 }}
 
                                 onReady={() => setIsReady(true)}
-                                onStart={() => setIsBlockedByBrowser(false)}
+                                onStart={() => setBlockedAt(null)}
 
                                 onProgress={checkDrift}
                                 progressInterval={500}
