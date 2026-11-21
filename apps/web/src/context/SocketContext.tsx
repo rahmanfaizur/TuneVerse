@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { toast } from "sonner";
 import { EVENTS, PublicRoom } from "@tuneverse/shared";
@@ -9,7 +9,7 @@ interface SocketContextType {
     socket: Socket | null;
     isConnected: boolean;
     room: PublicRoom | null;
-    error: string | null; // <--- NEW
+    error: string | null;
     fingerprint: string | null; // <--- NEW
     login: (username: string) => void;
     logout: () => void;
@@ -31,10 +31,12 @@ export const useSocket = () => useContext(SocketContext);
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
+    // socket.io wants its auth set by assignment, which React state shouldn't be, so keep a ref for that.
+    const socketRef = useRef<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [room, setRoom] = useState<PublicRoom | null>(null);
-    const [error, setError] = useState<string | null>(null); // <--- NEW
-    const [fingerprint, setFingerprint] = useState<string | null>(null); // <--- NEW
+    const [error, setError] = useState<string | null>(null);
+    const [fingerprint, setFingerprint] = useState<string | null>(null);
 
     useEffect(() => {
         // Initialize or get Fingerprint
@@ -44,6 +46,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
                 .map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem('tuneverse_fingerprint', currentFingerprint);
         }
+        // The fingerprint lives in browser storage, so it's only known after the page loads.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFingerprint(currentFingerprint);
         // Smart Fallback: Use current hostname (e.g., 192.168.x.x) if env var is missing
         const protocol = window.location.protocol;
@@ -55,6 +59,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             transports: ["websocket", "polling"],
         });
 
+        socketRef.current = socketInstance;
         setSocket(socketInstance);
 
         socketInstance.on("connect", () => {
@@ -108,15 +113,14 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     const login = (username: string) => {
-        if (!socket) return;
-        // localStorage.setItem("tuneverse_user", username); // REMOVED: AuthContext manages this
-        socket.auth = { username };
-        socket.connect();
+        const current = socketRef.current;
+        if (!current) return;
+        current.auth = { username };
+        current.connect();
     };
 
     const logout = () => {
         if (!socket) return;
-        // localStorage.removeItem("tuneverse_user"); // REMOVED: AuthContext manages this
         socket.disconnect();
         setRoom(null);
     };

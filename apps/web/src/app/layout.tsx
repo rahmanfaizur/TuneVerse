@@ -41,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${anton.variable} ${archivo.variable} font-sans antialiased`}>
         {/* "system" picks day or night from the device; a picked paper is remembered. */}
         <ThemeProvider
