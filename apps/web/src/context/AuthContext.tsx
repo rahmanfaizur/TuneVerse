@@ -34,6 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storedToken && storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
+                // Saved logins only exist in the browser, so they're read after the page loads.
+                // Reading them during render would make the server and browser HTML disagree.
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setToken(storedToken);
                 setUser(parsedUser);
             } catch (e) {

@@ -13,7 +13,7 @@ router.use(rateLimit({
     limit: 30,
     standardHeaders: "draft-7",
     legacyHeaders: false,
-    message: { error: "Too many attempts, try again in a few minutes" },
+    message: { error: "Too many tries. Wait a few minutes, then try again." },
 }));
 
 const isText = (value: unknown, max: number): value is string =>
@@ -25,11 +25,11 @@ router.post("/signup", async (req, res) => {
         const { username, email, password } = req.body;
 
         if (!isText(username, 30) || !isText(email, 254) || !isText(password, 72)) {
-            return res.status(400).json({ error: "Missing or invalid fields" });
+            return res.status(400).json({ error: "Check every field is filled in, then try again." });
         }
 
         if (password.length < 8) {
-            return res.status(400).json({ error: "Password must be at least 8 characters" });
+            return res.status(400).json({ error: "Your password needs at least 8 characters." });
         }
 
         const existingUser = await prisma.user.findFirst({
@@ -39,7 +39,7 @@ router.post("/signup", async (req, res) => {
         });
 
         if (existingUser) {
-            return res.status(400).json({ error: "Username or email already exists" });
+            return res.status(400).json({ error: "That username or email is already taken. Try another, or sign in." });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -63,7 +63,7 @@ router.post("/signup", async (req, res) => {
         res.json({ token, user: { id: user.id, username: user.username, email: user.email, avatarUrl } });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Something went wrong on our side. Try again in a moment." });
     }
 });
 
@@ -73,7 +73,7 @@ router.post("/login", async (req, res) => {
         const { email, password } = req.body;
 
         if (!isText(email, 254) || !isText(password, 72)) {
-            return res.status(400).json({ error: "Missing or invalid fields" });
+            return res.status(400).json({ error: "Check every field is filled in, then try again." });
         }
 
         const user = await prisma.user.findUnique({
@@ -81,13 +81,13 @@ router.post("/login", async (req, res) => {
         });
 
         if (!user || !user.password) {
-            return res.status(401).json({ error: "Invalid credentials" });
+            return res.status(401).json({ error: "That email and password don't match. Check them and try again." });
         }
 
         const validPassword = await bcrypt.compare(password, user.password);
 
         if (!validPassword) {
-            return res.status(401).json({ error: "Invalid credentials" });
+            return res.status(401).json({ error: "That email and password don't match. Check them and try again." });
         }
 
         const token = jwt.sign(
@@ -100,7 +100,7 @@ router.post("/login", async (req, res) => {
         res.json({ token, user: { id: user.id, username: user.username, email: user.email, avatarUrl } });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Something went wrong on our side. Try again in a moment." });
     }
 });
 
@@ -111,7 +111,7 @@ router.post("/guest", async (req, res) => {
 
         // If no username provided, generate one
         if (username !== undefined && username !== "" && !isText(username, 30)) {
-            return res.status(400).json({ error: "Invalid username" });
+            return res.status(400).json({ error: "Pick a name of up to 30 characters." });
         }
 
         const guestName = username || `Guest-${Math.floor(Math.random() * 10000)}`;
@@ -122,7 +122,7 @@ router.post("/guest", async (req, res) => {
         });
 
         if (existingUser) {
-            return res.status(400).json({ error: "Username taken" });
+            return res.status(400).json({ error: "Someone here already has that name. Try another." });
         }
 
         const user = await prisma.user.create({
@@ -142,7 +142,7 @@ router.post("/guest", async (req, res) => {
         res.json({ token, user: { id: user.id, username: user.username, isGuest: true, avatarUrl } });
     } catch (e) {
         console.error(e);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: "Something went wrong on our side. Try again in a moment." });
     }
 });
 

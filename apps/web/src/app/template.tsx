@@ -6,7 +6,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
 
     return (
-        <div key={pathname} className="animate-page-enter relative h-full w-full bg-background text-foreground">
+        <div key={pathname} className="animate-page-enter relative h-full w-full bg-paper text-ink">
             {children}
         </div>
     );

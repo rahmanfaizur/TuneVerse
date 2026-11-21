@@ -1,25 +1,39 @@
 import "./globals.css";
+import type { Metadata, Viewport } from "next";
 import { SocketProvider } from "../context/SocketContext";
 import { AuthProvider } from "../context/AuthContext";
 import { SpotifyProvider } from "../context/SpotifyContext";
 import { Toaster } from "sonner";
-import { Figtree, Newsreader } from "next/font/google";
-import { ThemeProvider } from "../components/ThemeProvider";
-import { ThemeToggle } from "../components/ThemeToggle";
+import { ThemeProvider } from "next-themes";
+import { PAPER_ATTRIBUTE_VALUES, PAPERS } from "../components/poster/papers";
+import { Anton, Archivo } from "next/font/google";
 import NavigationProgress from "../components/NavigationProgress";
 
-const figtree = Figtree({
+const anton = Anton({
   subsets: ["latin"],
-  variable: "--font-sans",
+  weight: "400",
+  variable: "--font-anton",
   display: "swap",
 });
 
-const newsreader = Newsreader({
+const archivo = Archivo({
   subsets: ["latin"],
-  style: ["italic"],
-  variable: "--font-serif",
+  axes: ["wdth"],
+  variable: "--font-archivo",
   display: "swap",
 });
+
+export const metadata: Metadata = {
+  title: "TuneVerse",
+  description: "Start a room, play a song from YouTube or Spotify, and everyone hears the same second of it.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f3f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1647" },
+  ],
+};
 
 export default function RootLayout({
   children,
@@ -27,28 +41,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${figtree.variable} ${newsreader.variable} font-sans antialiased`}>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body className={`${anton.variable} ${archivo.variable} font-sans antialiased`}>
+        {/* "system" picks day or night from the device; a picked paper is remembered. */}
         <ThemeProvider
-          attribute="class"
+          attribute="data-paper"
+          themes={PAPERS.map((paper) => paper.id)}
+          value={PAPER_ATTRIBUTE_VALUES}
           defaultTheme="system"
           enableSystem
+          storageKey="tuneverse-paper"
         >
           <AuthProvider>
             <SpotifyProvider>
               <SocketProvider>
                 <NavigationProgress />
                 {children}
-                <ThemeToggle />
                 <Toaster
                   position="bottom-center"
                   toastOptions={{
                     style: {
-                      background: "var(--foreground)",
-                      color: "var(--background)",
+                      background: "var(--ink)",
+                      color: "var(--paper)",
                       border: "none",
-                      borderRadius: 12,
+                      borderRadius: 0,
                       fontFamily: "var(--font-sans)",
+                      fontSize: 15,
                     },
                   }}
                 />

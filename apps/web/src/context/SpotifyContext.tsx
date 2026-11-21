@@ -166,6 +166,8 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         if (!storedToken) return;
 
         tokenRef.current = storedToken;
+        // Saved Spotify logins only exist in the browser, so they're read after the page loads.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSpotifyToken(storedToken);
         setExpiresAt(Number(localStorage.getItem(STORAGE.expiresAt)) || 0);
 

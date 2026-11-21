@@ -49,7 +49,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
         <div className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto">
                 {room.queue.length === 0 ? (
-                    <p className="p-8 text-center text-muted-foreground">
+                    <p className="p-8 text-center text-soft">
                         Queue&apos;s empty. Add a song and it&apos;ll show up here.
                     </p>
                 ) : (
@@ -57,18 +57,18 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                         {room.queue.map((track, index) => {
                             const hasVoted = !!socket && track.voters?.includes(socket.id ?? "");
                             return (
-                                <li key={`${track.id}-${index}`} className="queue-row group flex items-center gap-3 border-b border-border px-4 py-3">
-                                    <span className="w-5 shrink-0 text-sm font-medium text-muted-foreground">{index + 1}</span>
+                                <li key={`${track.id}-${index}`} className="queue-row group flex items-center gap-3 border-b-2 border-wash px-4 py-3">
+                                    <span className="display w-6 shrink-0 text-2xl leading-none text-blue">{index + 1}</span>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-[15px]">{track.title}</p>
-                                        <p className="truncate text-xs text-muted-foreground">
+                                        <p className="truncate text-xs text-soft">
                                             {SOURCE_NAMES[track.source ?? "youtube"]} · added by {track.addedBy}
                                         </p>
                                     </div>
                                     {(isHost || track.addedBy === username) && (
                                         <button
                                             onClick={() => socket?.emit(EVENTS.QUEUE_REMOVE, { index })}
-                                            className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 transition-[opacity,color] hover:text-signal md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+                                            className="ink-link shrink-0 text-xs font-semibold transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
                                         >
                                             Remove
                                         </button>
@@ -77,7 +77,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                         onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
                                         aria-label={`Vote for ${track.title}, ${track.votes} votes so far`}
                                         aria-pressed={hasVoted}
-                                        className={`flex shrink-0 flex-col items-center text-xs leading-none transition-colors ${hasVoted ? "text-signal" : "text-muted-foreground hover:text-foreground"}`}
+                                        className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-on-pink" : "text-soft hover:bg-wash hover:text-on-pink"}`}
                                     >
                                         <svg viewBox="0 0 12 8" className="mb-1 h-2 w-3" fill="currentColor" aria-hidden="true"><path d="M6 0l6 8H0z" /></svg>
                                         {track.votes || 0}
@@ -89,10 +89,10 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 )}
 
                 {suggestions.length > 0 && (
-                    <div className="dropdown-enter border-b border-border bg-muted p-4">
+                    <div className="dropdown-enter border-b-2 border-rule bg-wash p-4">
                         <div className="flex items-baseline justify-between">
-                            <h3 className="font-semibold tracking-tight">You might like</h3>
-                            <button onClick={() => setSuggestions([])} className="text-xs underline underline-offset-2">Close</button>
+                            <h3 className="display text-2xl text-blue">You might like</h3>
+                            <button onClick={() => setSuggestions([])} className="ink-link text-xs font-semibold">Close</button>
                         </div>
                         <ul className="mt-2">
                             {suggestions.map((item) => (
@@ -106,9 +106,9 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                     >
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm group-hover:underline">{item.title}</span>
-                                            <span className="block truncate text-xs text-muted-foreground">{item.artist}</span>
+                                            <span className="block truncate text-xs text-soft">{item.artist}</span>
                                         </span>
-                                        <span className="shrink-0 text-xs text-signal">Add</span>
+                                        <span className="label shrink-0 bg-pink px-2 py-1 text-on-pink">Add</span>
                                     </button>
                                 </li>
                             ))}
@@ -117,15 +117,15 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                 )}
             </div>
 
-            <div className="relative border-t border-border p-4">
+            <div className="relative border-t-2 border-rule p-4">
                 {showMoods && (
-                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 rounded-2xl border border-border bg-background p-3 shadow-2xl">
+                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 border-2 border-rule bg-paper p-3">
                         <div className="flex flex-wrap gap-2">
                             {MOODS.map((mood) => (
                                 <button
                                     key={mood}
                                     onClick={() => askForSuggestions(mood)}
-                                    className="rounded-full bg-muted px-3 py-1.5 text-sm transition-opacity hover:opacity-75"
+                                    className="border-2 border-ink px-3 py-1 text-sm font-semibold transition-colors hover:bg-ink hover:text-paper"
                                 >
                                     {mood}
                                 </button>
@@ -152,7 +152,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                     onClick={() => setShowMoods((open) => !open)}
                     disabled={isSuggesting}
                     aria-expanded={showMoods}
-                    className="inline-flex items-center gap-2 text-sm font-medium text-signal underline-offset-4 enabled:hover:underline"
+                    className="ink-link inline-flex items-center gap-2 text-sm font-bold"
                 >
                     {isSuggesting && <Spinner />}
                     {isSuggesting ? "Finding songs for you" : "Suggest songs"}

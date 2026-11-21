@@ -5,6 +5,7 @@ import { useSpotify } from "../context/SpotifyContext";
 import { EVENTS, PublicRoom } from "@tuneverse/shared";
 import { Socket } from "socket.io-client";
 import Button from "./Button";
+import Artwork from "./poster/Artwork";
 
 // Spotify has no rate control like the YouTube player, so we can only seek.
 // Seeking is audible, hence the wide margin.
@@ -116,18 +117,18 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
     if (!isConnected || needsPremium) {
         const artwork = room.playback.meta?.artwork;
         return (
-            <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black p-6 text-center text-white">
-                {artwork && <div className="absolute inset-0 scale-110 bg-cover bg-center opacity-30 blur-2xl" style={{ backgroundImage: `url(${artwork})` }} />}
-                <div className="relative max-w-lg">
-                    <p className="text-[15px] opacity-80">This one&apos;s playing on Spotify</p>
-                    <h2 className="mt-1 text-2xl font-semibold tracking-tight md:text-4xl">{room.playback.meta?.title ?? "A Spotify track"}</h2>
+            <div className="flex h-full w-full items-center gap-6 overflow-hidden bg-stage p-6 text-on-stage md:p-10">
+                {artwork && <Artwork src={artwork} className="hidden aspect-square h-3/5 shrink-0 sm:block" />}
+                <div className="min-w-0 max-w-lg">
+                    <p className="label opacity-85">Playing on Spotify</p>
+                    <h2 className="display mt-2 text-4xl md:text-5xl">{room.playback.meta?.title ?? "A Spotify track"}</h2>
                     {needsPremium ? (
-                        <p className="mt-5 text-[15px] opacity-80">
+                        <p className="mt-4 text-[15px] opacity-85">
                             Spotify only lets Premium accounts play music in the browser. You can still chat, or add a YouTube song to the queue.
                         </p>
                     ) : (
                         <>
-                            <p className="mt-5 text-[15px] opacity-80">Connect Spotify to hear it. You&apos;ll need Premium and an approved account.</p>
+                            <p className="mt-4 text-[15px] opacity-85">Connect Spotify to hear it. You&apos;ll need Premium and an approved account.</p>
                             <Button onClick={connectSpotify} loading={isConnecting} loadingText="Opening Spotify" className="mt-5">
                                 Connect to hear this
                             </Button>
@@ -150,61 +151,33 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
     };
 
     return (
-        <div className="w-full h-full relative bg-black overflow-hidden group">
-            {/* Album Art Background (Blurred) */}
-            {displayImage && (
-                <div
-                    className="absolute inset-0 bg-cover bg-center blur-xl opacity-50 scale-110"
-                    style={{ backgroundImage: `url(${displayImage})` }}
-                />
+        // Laid out in a row so the cover, title and progress all fit inside a 16:9 frame.
+        <div className="flex h-full w-full items-center gap-5 overflow-hidden bg-stage p-5 text-on-stage md:gap-8 md:p-10">
+            {displayImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={displayImage} alt="" className="aspect-square h-full max-h-80 shrink-0 object-cover" />
+            ) : (
+                <Artwork className="aspect-square h-full max-h-80 shrink-0" />
             )}
 
-            {/* Main Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-8">
-                {/* Album Art */}
-                <div className="relative w-64 h-64 md:w-96 md:h-96 shadow-2xl mb-8 group-hover:scale-105 transition-transform duration-700">
-                    {displayImage ? (
-                        <img
-                            src={displayImage}
-                            alt={displayTitle}
-                            className="w-full h-full object-cover shadow-2xl"
-                        />
-                    ) : (
-                        <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-                            <span className="text-4xl font-semibold">TV</span>
-                        </div>
-                    )}
-                </div>
+            <div className="min-w-0 flex-1">
+                <p className="label opacity-85">Now playing on Spotify</p>
+                <h2 className="display mt-2 line-clamp-2 text-3xl md:text-5xl">{displayTitle}</h2>
+                <p className="mt-1 truncate text-lg opacity-85">{displayArtist}</p>
 
-                {/* Track Info */}
-                <div className="text-center space-y-2 mb-8">
-                    <h2 className="text-2xl md:text-4xl font-semibold tracking-tight text-white">
-                        {displayTitle}
-                    </h2>
-                    <p className="text-lg text-white/75">
-                        {displayArtist}
-                    </p>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="w-full max-w-2xl flex items-center gap-4 px-4">
-                    <span className="text-xs text-gray-300 w-10 text-right">{formatTime(position)}</span>
-                    <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                <div className="mt-5 flex items-center gap-3 text-xs tabular-nums">
+                    <span className="w-9">{formatTime(position)}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden bg-paper/20">
                         <div
-                            className="h-full bg-white rounded-full transition-all duration-1000 ease-linear"
+                            className="h-full bg-pink transition-[width] duration-1000 ease-linear"
                             style={{ width: `${duration ? (position / duration) * 100 : 0}%` }}
                         />
                     </div>
-                    <span className="text-xs text-gray-300 w-10">{formatTime(duration)}</span>
+                    <span className="w-9 text-right">{formatTime(duration)}</span>
                 </div>
 
-                {!isActive && (
-                    <div className="mt-8 mt-6 px-4 py-2 text-white/80 animate-pulse">
-                        Getting Spotify ready
-                    </div>
-                )}
+                {!isActive && <p className="mt-4 text-[15px] opacity-85">Getting Spotify ready…</p>}
             </div>
-
         </div>
     );
 }

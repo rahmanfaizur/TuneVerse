@@ -47,7 +47,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
         <div className="flex h-full flex-col">
             <div ref={listRef} className="flex-1 space-y-5 overflow-y-auto p-5">
                 {messages.length === 0 ? (
-                    <p className="pt-8 text-center text-muted-foreground">
+                    <p className="pt-8 text-center text-soft">
                         Nothing said yet. Go on, say hi.
                     </p>
                 ) : (
@@ -56,12 +56,12 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                         return (
                             <div key={msg.id} className={`flex max-w-[85%] flex-col ${isMe ? "ml-auto items-end" : "items-start"}`}>
                                 <div className="flex items-baseline gap-2 text-xs">
-                                    <span className="font-medium">{isMe ? "You" : msg.username}</span>
-                                    <span className="text-muted-foreground">
+                                    <span className="font-bold">{isMe ? "You" : msg.username}</span>
+                                    <span className="text-soft">
                                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                 </div>
-                                <p className={`mt-1 break-words rounded-2xl px-3.5 py-2 text-[15px] leading-snug ${isMe ? "bg-signal text-signal-foreground" : "bg-muted"}`}>
+                                <p className={`mt-1 break-words px-3.5 py-2 text-[15px] leading-snug ${isMe ? "bg-pink text-on-pink" : "bg-wash"}`}>
                                     {msg.text}
                                 </p>
                             </div>
@@ -70,7 +70,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                 )}
             </div>
 
-            <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border p-3">
+            <form onSubmit={sendMessage} className="flex items-center gap-2 border-t-2 border-rule p-3">
                 <input
                     type="text"
                     value={inputText}
@@ -83,7 +83,7 @@ export default function Chat({ username, initialMessages }: ChatProps) {
                 <button
                     type="submit"
                     disabled={!inputText.trim()}
-                    className="shrink-0 px-2 text-sm font-medium text-signal disabled:opacity-40"
+                    className="shrink-0 bg-pink px-3 py-2 text-sm font-bold text-on-pink transition-colors enabled:hover:bg-blue enabled:hover:text-paper disabled:opacity-40"
                 >
                     Send
                 </button>

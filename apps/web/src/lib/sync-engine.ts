@@ -1,6 +1,12 @@
 import { Socket } from "socket.io-client";
 import { EVENTS } from "@tuneverse/shared";
 
+interface ClockSyncReply {
+    clientSendTime: number;
+    serverReceiveTime: number;
+    serverSendTime: number;
+}
+
 export class SyncEngine {
     private socket: Socket;
     private clockOffset: number = 0;
@@ -37,7 +43,7 @@ export class SyncEngine {
             const clientSendTime = Date.now();
             this.socket.emit(EVENTS.SYNC_CLOCK, { clientSendTime });
 
-            const handler = (payload: any) => {
+            const handler = (payload: ClockSyncReply) => {
                 const { clientSendTime: echoed, serverReceiveTime, serverSendTime } = payload;
                 if (echoed !== clientSendTime) return; // Ignore old responses
 

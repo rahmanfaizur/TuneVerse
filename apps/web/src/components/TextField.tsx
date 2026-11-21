@@ -8,9 +8,9 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 export default function TextField({ label, hint, id, ...props }: TextFieldProps) {
     return (
         <div>
-            <label htmlFor={id} className="block text-sm font-medium">{label}</label>
+            <label htmlFor={id} className="label block text-ink">{label}</label>
             <input id={id} {...props} className="field mt-1.5" />
-            {hint && <p className="mt-1.5 text-sm text-muted-foreground">{hint}</p>}
+            {hint && <p className="mt-1.5 text-sm text-soft">{hint}</p>}
         </div>
     );
 }

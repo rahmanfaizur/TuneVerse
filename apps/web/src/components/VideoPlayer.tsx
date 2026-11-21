@@ -9,6 +9,7 @@ import { SyncEngine } from "../lib/sync-engine";
 import PlayPicker from "./room/PlayPicker";
 import { MusicSource, SOURCE_NAMES } from "./room/music";
 
+// The reactions people send are emoji on purpose; they are content, not icons. avoid-ai-design-ignore: I2
 const REACTIONS = ["🔥", "❤️", "😂", "😮", "🎉"];
 const YT_PLAYING = 1;
 
@@ -81,32 +82,40 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
         }
     };
 
+    // The effect below should only run when playback changes, so it calls the latest checkDrift through a ref.
+    const checkDriftRef = useRef(checkDrift);
+    useEffect(() => {
+        checkDriftRef.current = checkDrift;
+    });
+
     // 3. Handle External Updates (Room Changed)
     useEffect(() => {
         if (!isReady || !playerRef.current) return;
 
         // If status changed (Play <-> Pause), force an immediate drift check
-        checkDrift();
+        checkDriftRef.current();
     }, [room.playback, isReady]);
 
     // Browsers often block sound until someone interacts with the page, which would
     // leave a new listener sitting in silence without knowing why.
-    const [isBlockedByBrowser, setIsBlockedByBrowser] = useState(false);
+    // Remember which moment got blocked, so a new song or a pause clears it without an extra reset.
+    const playbackKey = `${room.playback.videoId}|${room.playback.status}|${room.playbackSource}|${isReady}`;
+    const [blockedAt, setBlockedAt] = useState<string | null>(null);
+    const isBlockedByBrowser = blockedAt === playbackKey;
 
     useEffect(() => {
-        setIsBlockedByBrowser(false);
         if (!isReady || room.playbackSource !== "youtube" || room.playback.status !== "PLAYING") return;
 
         const timer = setTimeout(() => {
             const state = playerRef.current?.getInternalPlayer()?.getPlayerState?.();
-            if (state !== undefined && state !== YT_PLAYING) setIsBlockedByBrowser(true);
+            if (state !== undefined && state !== YT_PLAYING) setBlockedAt(playbackKey);
         }, 2500);
         return () => clearTimeout(timer);
-    }, [isReady, room.playback.status, room.playback.videoId, room.playbackSource]);
+    }, [isReady, room.playback.status, room.playback.videoId, room.playbackSource, playbackKey]);
 
     const startListening = () => {
         playerRef.current?.getInternalPlayer()?.playVideo?.();
-        setIsBlockedByBrowser(false);
+        setBlockedAt(null);
     };
 
     // 4. User Controls
@@ -214,7 +223,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                 }}
 
                                 onReady={() => setIsReady(true)}
-                                onStart={() => setIsBlockedByBrowser(false)}
+                                onStart={() => setBlockedAt(null)}
 
                                 onProgress={checkDrift}
                                 progressInterval={500}
@@ -228,7 +237,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         {isBlockedByBrowser && (
                             <button
                                 onClick={startListening}
-                                className="absolute inset-0 z-10 flex items-center justify-center bg-black/85 text-2xl font-semibold tracking-tight text-white transition-colors hover:bg-black/75 md:text-5xl"
+                                className="display absolute inset-0 z-10 flex items-center justify-center bg-stage/90 text-5xl text-on-stage transition-colors hover:bg-stage/80 md:text-7xl"
                             >
                                 Press to listen in
                             </button>
@@ -251,30 +260,30 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
             </div>
 
             {room.playback.videoId && (
-                <div className="relative z-10 flex shrink-0 items-center gap-4 bg-muted px-4 py-3">
+                <div className="relative z-10 flex shrink-0 items-center gap-4 border-t-2 border-rule bg-paper px-4 py-3">
                     {room.hostId === socket?.id ? (
                         <div className="flex shrink-0 items-center gap-3">
-                            <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-signal">
+                            <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-blue">
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>
                             </button>
                             <button
                                 onClick={room.playback.status === "PLAYING" ? handlePause : handlePlay}
                                 aria-label={room.playback.status === "PLAYING" ? "Pause" : "Play"}
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-signal text-signal-foreground transition-opacity hover:opacity-90"
+                                className="flex h-11 w-11 items-center justify-center rounded-full bg-pink text-on-pink transition-colors hover:bg-blue hover:text-paper"
                             >
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
                                     {room.playback.status === "PLAYING" ? <path d="M6 4h4v16H6zM14 4h4v16h-4z" /> : <path d="M7 4l14 8-14 8z" />}
                                 </svg>
                             </button>
-                            <button onClick={handleSkip} aria-label="Skip track" className="p-1 transition-colors hover:text-signal">
+                            <button onClick={handleSkip} aria-label="Skip track" className="p-1 transition-colors hover:text-blue">
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
                             </button>
                         </div>
                     ) : null}
 
                     <p className="min-w-0 flex-1 truncate text-sm">
-                        {nowPlaying && <span className="block truncate font-medium">{nowPlaying}</span>}
-                        <span className="block text-muted-foreground">
+                        {nowPlaying && <span className="block truncate font-bold">{nowPlaying}</span>}
+                        <span className="block text-soft">
                             {room.playback.status === "PAUSED" ? "Paused" : "Playing"} on {SOURCE_NAMES[room.playbackSource]}
                         </span>
                     </p>
@@ -289,7 +298,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                         </div>
                         <div className="md:hidden">
                             {showMobileReactions && (
-                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 rounded-2xl border border-border bg-background p-2 shadow-xl">
+                                <div className="dropdown-enter absolute bottom-full right-0 mb-2 flex gap-1 border-2 border-rule bg-paper p-2">
                                     {REACTIONS.map((emoji) => (
                                         <button
                                             key={emoji}
@@ -305,7 +314,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                     ))}
                                 </div>
                             )}
-                            <button onClick={() => setShowMobileReactions((open) => !open)} aria-expanded={showMobileReactions} className="text-sm underline underline-offset-4">
+                            <button onClick={() => setShowMobileReactions((open) => !open)} aria-expanded={showMobileReactions} className="ink-link text-sm font-semibold">
                                 React
                             </button>
                         </div>

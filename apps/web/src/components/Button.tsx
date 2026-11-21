@@ -4,10 +4,15 @@ import Spinner from "./Spinner";
 type Variant = "primary" | "outline" | "quiet";
 
 const VARIANTS: Record<Variant, string> = {
-    primary: "rounded-full bg-signal px-6 py-3 font-medium text-signal-foreground enabled:hover:opacity-90",
-    outline: "rounded-full border border-border px-6 py-3 font-medium enabled:hover:bg-muted",
-    quiet: "text-foreground underline-offset-4 enabled:hover:text-signal enabled:hover:underline",
+    primary: "btn-pink bg-pink px-6 py-3 font-bold text-on-pink not-disabled:hover:bg-blue not-disabled:hover:text-paper",
+    outline: "border-2 border-ink px-6 py-2.5 font-bold text-ink not-disabled:hover:bg-ink not-disabled:hover:text-paper",
+    quiet: "ink-link font-semibold text-ink",
 };
+
+const BASE = "inline-flex items-center justify-center gap-2 text-[15px] transition-colors duration-150";
+
+// For links that should look like buttons.
+export const buttonClass = (variant: Variant = "primary") => `${BASE} ${VARIANTS[variant]}`;
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: Variant;
@@ -29,7 +34,7 @@ export default function Button({
             {...props}
             disabled={disabled || loading}
             aria-busy={loading}
-            className={`inline-flex items-center justify-center gap-2 text-[15px] transition-[color,background-color,opacity,transform] duration-200 active:enabled:scale-[0.98] disabled:cursor-not-allowed ${loading ? "opacity-80" : "disabled:opacity-40"} ${VARIANTS[variant]} ${className}`}
+            className={`${BASE} active:enabled:translate-y-px disabled:cursor-not-allowed ${loading ? "opacity-80" : "disabled:opacity-40"} ${VARIANTS[variant]} ${className}`}
         >
             {loading && <Spinner />}
             {loading ? loadingText ?? children : children}

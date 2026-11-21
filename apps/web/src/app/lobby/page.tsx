@@ -10,6 +10,12 @@ import Button from "../../components/Button";
 import LoadingScreen from "../../components/LoadingScreen";
 import { startNavigationProgress } from "../../components/NavigationProgress";
 import Spinner from "../../components/Spinner";
+import Artwork from "../../components/poster/Artwork";
+import Overprint from "../../components/poster/Overprint";
+import PosterMessage from "../../components/poster/PosterMessage";
+import Segmented from "../../components/poster/Segmented";
+import SiteHeader from "../../components/poster/SiteHeader";
+import Ticket from "../../components/poster/Ticket";
 import { getApiUrl } from "../../lib/api";
 
 const REFRESH_EVERY_MS = 10000;
@@ -43,7 +49,7 @@ export default function LobbyPage() {
     const [roomCode, setRoomCode] = useState("");
     const [isCreating, setIsCreating] = useState(false);
     const [joiningId, setJoiningId] = useState<string | null>(null);
-        const createTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const createTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const fetchRooms = useCallback(async () => {
         try {
@@ -128,11 +134,9 @@ export default function LobbyPage() {
 
     if (error) {
         return (
-            <main className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-                <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">Can&apos;t reach the server</h1>
-                <p className="mt-3 max-w-md text-lg text-muted-foreground">It might be waking up. Give it a moment and try again.</p>
-                <Button onClick={() => window.location.reload()} className="mt-6">Try again</Button>
-            </main>
+            <PosterMessage headline="Lost the signal" text="We can't reach the server. It might be waking up. Give it a moment and try again.">
+                <Button onClick={() => window.location.reload()}>Try again</Button>
+            </PosterMessage>
         );
     }
 
@@ -147,66 +151,59 @@ export default function LobbyPage() {
 
     return (
         <main className="mx-auto min-h-screen w-full max-w-6xl px-5 md:px-8">
-            <header className="flex items-center justify-between gap-4 py-5">
-                <span className="text-xl font-semibold tracking-tight">TuneVerse</span>
-                <span className="flex items-center gap-4 text-sm">
-                    <span className="hidden text-muted-foreground sm:inline">{user?.username}</span>
-                    <button onClick={logout} className="underline-offset-4 transition-colors hover:text-signal hover:underline">Sign out</button>
-                </span>
-            </header>
+            <SiteHeader href="/lobby">
+                <span className="hidden text-soft sm:inline">{user?.username}</span>
+                <button onClick={logout} className="ink-link font-semibold">Sign out</button>
+            </SiteHeader>
 
-            <div className="pb-6 pt-3 text-center md:pb-8 md:pt-5">
-                <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
-                    What are we <em>listening</em> to?
-                </h1>
-                <p className="mt-2 text-muted-foreground md:text-lg">Start a room, or jump into one that&apos;s already playing.</p>
+            <div className="py-8 md:py-10">
+                <Overprint text="What's playing" className="text-[clamp(3.5rem,10vw,7.5rem)]" />
+                <p className="mt-3 text-lg">Start a room, or jump into one that&apos;s already playing.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(20rem,1fr)]">
-                <section aria-label="Featured room" className="min-h-[20rem] min-w-0">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(19rem,1fr)]">
+                <section aria-label="Featured room" className="min-w-0">
                     {isFirstLoad ? (
-                        <div className="skeleton h-full min-h-[20rem] rounded-3xl" />
+                        <div className="skeleton h-full min-h-[18rem]" />
                     ) : cover ? (
-                        <button
+                        <Ticket
+                            as="button"
                             onClick={() => openRoom(cover.id)}
                             disabled={!!joiningId}
-                            className="group relative flex h-full min-h-[20rem] w-full flex-col justify-end overflow-hidden rounded-3xl bg-muted p-6 text-left md:p-8"
-                        >
-                            {cover.nowPlaying?.artwork && (
+                            className="group h-full min-h-[18rem] w-full bg-pink text-left text-on-pink"
+                            stubWidth="6rem"
+                            stubClassName="bg-blue text-paper px-2 transition-colors group-hover:bg-ink"
+                            stub={
                                 <>
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={cover.nowPlaying.artwork} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]" />
-                                    <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
+                                    <span className="label">{joiningId === cover.id ? "Going" : "Walk"}</span>
+                                    <span className="display text-4xl">{joiningId === cover.id ? <Spinner /> : "In"}</span>
+                                    <span className="label mt-3">Code</span>
+                                    <span className="font-bold tracking-widest">{cover.id}</span>
                                 </>
-                            )}
-                            <span className={`relative block ${cover.nowPlaying?.artwork ? "text-white" : ""}`}>
-                                <span className="inline-flex items-center gap-2 text-sm font-medium">
-                                    <span className="h-2 w-2 animate-pulse rounded-full bg-teal-400" />
-                                    Live now
-                                </span>
-                                <span className="mt-2 block break-words text-3xl font-semibold leading-tight tracking-tight md:text-4xl">{roomTitle(cover)}</span>
-                                <span className={`mt-1 block truncate text-[15px] ${cover.nowPlaying?.artwork ? "text-white/80" : "text-muted-foreground"}`}>
-                                    {cover.nowPlaying ? `${cover.nowPlaying.title} · ${SOURCE_LABEL[cover.nowPlaying.source]}` : "Nothing playing yet"}
-                                </span>
-                                <span className="mt-4 flex items-center justify-between gap-4">
-                                    <span className="text-[15px]">{listeners(cover.users.length)}</span>
-                                    <span className="inline-flex items-center gap-2 rounded-full bg-signal px-5 py-2.5 text-[15px] font-medium text-signal-foreground">
-                                        {joiningId === cover.id && <Spinner />}
-                                        {joiningId === cover.id ? "Joining" : "Join room"}
+                            }
+                        >
+                            <span className="grid h-full gap-5 p-5 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] md:p-6">
+                                <Artwork src={cover.nowPlaying?.artwork} className="aspect-square w-full max-w-44" />
+                                <span className="flex min-w-0 flex-col justify-end">
+                                    <span className="label">Biggest room right now</span>
+                                    <span className="display mt-2 break-words text-5xl md:text-6xl">{roomTitle(cover)}</span>
+                                    <span className="mt-3 block truncate text-[15px] font-semibold">
+                                        {cover.nowPlaying ? `${cover.nowPlaying.title} · ${SOURCE_LABEL[cover.nowPlaying.source]}` : "Nothing playing yet"}
                                     </span>
+                                    <span className="mt-1 block text-[15px]">{listeners(cover.users.length)}</span>
                                 </span>
                             </span>
-                        </button>
+                        </Ticket>
                     ) : (
-                        <div className="flex h-full min-h-[20rem] flex-col justify-center rounded-3xl bg-muted p-6 md:p-10">
-                            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-                                {filter === "mine" ? "You don't have any rooms running" : "No rooms are live right now"}
+                        <div className="flex h-full min-h-[18rem] flex-col justify-center bg-wash p-6 md:p-10">
+                            <h2 className="display text-4xl text-blue md:text-5xl">
+                                {filter === "mine" ? "You've got no rooms going" : "Quiet night so far"}
                             </h2>
-                            <p className="mt-1 text-muted-foreground">Getting one going takes about ten seconds.</p>
-                            <ol className="mt-6 space-y-3 text-[15px]">
+                            <p className="mt-2">{filter === "mine" ? "Start one and it shows up here." : "No rooms are live right now. Getting one going takes about ten seconds."}</p>
+                            <ol className="mt-6 space-y-3 text-[15px] font-semibold">
                                 {["Start a room and give it a name", "Send the link to your friends", "Play anything from YouTube or Spotify"].map((step, i) => (
                                     <li key={step} className="flex items-center gap-3">
-                                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background text-sm font-medium">{i + 1}</span>
+                                        <span className="display w-6 text-3xl leading-none text-pink" aria-hidden="true">{i + 1}</span>
                                         {step}
                                     </li>
                                 ))}
@@ -215,27 +212,27 @@ export default function LobbyPage() {
                     )}
                 </section>
 
-                <div className="flex flex-col gap-5">
-                    <form onSubmit={createRoom} className="rounded-3xl border border-border p-6">
-                        <label htmlFor="room-name" className="block text-xl font-semibold tracking-tight">Start a room</label>
-                        <p className="mt-0.5 text-[15px] text-muted-foreground">Then play from YouTube or Spotify.</p>
+                <div className="flex flex-col gap-6">
+                    <form onSubmit={createRoom} className="bg-ink p-5 text-paper md:p-6">
+                        <label htmlFor="room-name" className="display block text-3xl">Start a room</label>
+                        <p className="mt-1 text-[15px] opacity-85">Then play from YouTube or Spotify.</p>
                         <input
                             id="room-name"
                             value={roomName}
                             maxLength={60}
                             onChange={(e) => setRoomName(e.target.value)}
                             placeholder={`${user?.username}'s room`}
-                            className="field mt-3"
+                            className="field mt-4 !border-paper"
                         />
                         <Button type="submit" loading={isCreating} loadingText="Setting it up" className="mt-3 w-full">
                             Start room
                         </Button>
                     </form>
 
-                    <form onSubmit={joinByCode} className="rounded-3xl border border-border p-6">
-                        <label htmlFor="room-code" className="block text-xl font-semibold tracking-tight">Have a code?</label>
-                        <p className="mt-0.5 text-[15px] text-muted-foreground">Type it in, or paste an invite link.</p>
-                        <div className="mt-3 flex gap-2">
+                    <form onSubmit={joinByCode} className="border-2 border-rule p-5 md:p-6">
+                        <label htmlFor="room-code" className="display block text-3xl text-ink">Got a code?</label>
+                        <p className="mt-1 text-[15px]">Type it in, or paste an invite link.</p>
+                        <div className="mt-4 flex gap-2">
                             <input
                                 id="room-code"
                                 value={roomCode}
@@ -243,7 +240,7 @@ export default function LobbyPage() {
                                 placeholder="ABC123"
                                 autoComplete="off"
                                 spellCheck={false}
-                                className="field min-w-0 flex-1 tracking-widest"
+                                className="field min-w-0 flex-1 font-bold tracking-[0.3em]"
                             />
                             <Button type="submit" variant="outline" disabled={!roomCode} loading={!!joiningId && joiningId === roomCode} loadingText="Joining" className="shrink-0">
                                 Join
@@ -253,59 +250,59 @@ export default function LobbyPage() {
                 </div>
             </div>
 
-            <section className="pb-20 pt-8">
-                <div className="flex items-center justify-between gap-4">
-                    <h2 className="text-xl font-semibold tracking-tight">More live rooms</h2>
-                    <div className="flex rounded-full bg-muted p-1 text-sm" role="group" aria-label="Which rooms to show">
-                        {(["all", "mine"] as const).map((option) => (
-                            <button
-                                key={option}
-                                aria-pressed={filter === option}
-                                onClick={() => {
-                                    if (option === filter) return;
-                                    setRooms(null);
-                                    setFilter(option);
-                                }}
-                                className={`rounded-full px-3.5 py-1 transition-colors ${filter === option ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                            >
-                                {option === "all" ? "Everyone" : "Yours"}
-                            </button>
-                        ))}
-                    </div>
+            <section className="pb-20 pt-12">
+                <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-rule pb-3">
+                    <h2 className="display text-4xl text-blue">More rooms</h2>
+                    <Segmented
+                        ariaLabel="Which rooms to show"
+                        options={["all", "mine"] as const}
+                        labels={{ all: "Everyone", mine: "Yours" }}
+                        value={filter}
+                        onChange={(option) => {
+                            setRooms(null);
+                            setFilter(option);
+                        }}
+                    />
                 </div>
 
                 {isFirstLoad ? (
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
-                        {[0, 1, 2].map((i) => <div key={i} className="skeleton h-20 rounded-2xl" />)}
+                    <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden="true">
+                        {[0, 1, 2].map((i) => <div key={i} className="skeleton h-24" />)}
                     </div>
                 ) : others.length === 0 ? (
-                    <p className="mt-3 text-[15px] text-muted-foreground">
+                    <p className="mt-4 text-[15px]">
                         {cover ? "That's the only room going right now." : "Nothing here yet."}
                     </p>
                 ) : (
-                    <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {others.map((room) => (
                             <li key={room.id} className="queue-row">
-                                <button
+                                <Ticket
+                                    as="button"
                                     onClick={() => openRoom(room.id)}
                                     disabled={!!joiningId}
-                                    className="flex w-full items-center gap-3 rounded-2xl border border-border p-3 text-left transition-colors hover:bg-muted"
+                                    className="group w-full bg-wash text-left transition-colors hover:bg-wash-strong"
+                                    stubWidth="4.25rem"
+                                    stubClassName="bg-pink text-on-pink"
+                                    stub={
+                                        joiningId === room.id ? <Spinner className="text-xl" /> : (
+                                            <>
+                                                <span className="display text-3xl leading-none">{room.users.length}</span>
+                                                <span className="label mt-1 !text-[0.625rem]">in</span>
+                                            </>
+                                        )
+                                    }
                                 >
-                                    {room.nowPlaying?.artwork ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={room.nowPlaying.artwork} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
-                                    ) : (
-                                        <span className="h-14 w-14 shrink-0 rounded-xl bg-muted" />
-                                    )}
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate font-medium">{roomTitle(room)}</span>
-                                        <span className="block truncate text-sm text-muted-foreground">
-                                            {room.nowPlaying ? room.nowPlaying.title : "Nothing playing yet"}
+                                    <span className="flex items-center gap-3 p-3">
+                                        <Artwork src={room.nowPlaying?.artwork} className="h-16 w-16 shrink-0" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="display block truncate text-2xl">{roomTitle(room)}</span>
+                                            <span className="block truncate text-sm text-soft">
+                                                {room.nowPlaying ? room.nowPlaying.title : "Nothing playing yet"}
+                                            </span>
                                         </span>
-                                        <span className="block text-sm text-muted-foreground">{listeners(room.users.length)}</span>
                                     </span>
-                                    {joiningId === room.id && <Spinner className="shrink-0 text-signal" />}
-                                </button>
+                                </Ticket>
                             </li>
                         ))}
                     </ul>
