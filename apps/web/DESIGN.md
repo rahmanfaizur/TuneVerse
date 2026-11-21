@@ -16,8 +16,34 @@ Use this file for every page. If you need something it doesn't cover, add it her
 | `wash` | `#e2e6f3` | Quiet fills: inputs, hover rows, empty art. |
 | `soft` | `#4a5797` | Secondary text on paper or wash (6:1). |
 
-Text on pink is always `ink` (4.7:1). Text on blue or ink is always `paper`.
-Errors are white strips with a 6px pink left edge and plain words, no red (`<FormError>`).
+Values above are **day print**. Never write a hex in a component; use the token so every paper works.
+
+Role tokens (each paper sets its own):
+
+| Token | Job |
+|---|---|
+| `on-pink` | Text on anything pink. Never `text-ink` on `bg-pink`. |
+| `rule` | Dividers and panel edges. Interactive edges (buttons, fields, switches) use `ink`. |
+| `field` | Inside inputs. |
+| `wash-strong` | Hover on a wash block. |
+| `stage` / `on-stage` | The video and Spotify area. Always dark, on every paper. |
+
+Text on blue or on an ink block is `paper` (they invert together on dark papers).
+Errors are `field` strips with a 6px pink left edge and plain words, no red (`<FormError>`).
+
+## Papers
+
+Four papers, picked with the swatches in every header (`<PaperPicker>`), saved per device.
+"Auto" follows the device: light = day print, dark = night print.
+
+| Paper | `data-paper` | Ground | Notes |
+|---|---|---|---|
+| Day print | `day` | `#f2f3f5` | The default. |
+| Blush | `blush` | `#fbdde9` | Pink buttons get an ink edge (`.btn-pink`) so they don't vanish. |
+| Night print | `night` | `#0e1647` | The ink becomes the paper. Lighter blue `#7d95ff`, pink `#ff4fac`. Default dark. |
+| Black stock | `black` | `#121216` | Extra option only. Near-black + neon is a known AI look, so never the default. |
+
+Every pair passes AA (4.5:1) on every paper. Check new colours on all four before adding them.
 
 ## Type
 
@@ -28,12 +54,12 @@ Errors are white strips with a 6px pink left edge and plain words, no red (`<For
 ## Shapes
 
 - Corners are square. The only circles are avatars and the play button.
-- Separate things with 2px `ink` rules or solid fills, not shadows and not hairlines.
+- Separate things with 2px `rule` lines or solid fills, not shadows and not hairlines.
 - **Tickets** (`.ticket`): a solid block with a perforated stub on the right, notches cut top and bottom. Use for: featured room, room cards, auth forms, invite code.
 
 ## Signature details (don't add more)
 
-1. **Misregistered headline** (`<Overprint>`): the pink layer sits slightly off the blue one, multiplied, like a riso print that slipped. It slides into place once on load.
+1. **Misregistered headline** (`<Overprint>`): the pink layer sits slightly off the blue one (multiplied on light papers, blue on top on dark ones), like a riso print that slipped. It slides into place once on load.
 2. **Duotone artwork** (`.duotone`): album art prints in pink + blue; hover shows the real colours.
 
 ## Loud vs calm
