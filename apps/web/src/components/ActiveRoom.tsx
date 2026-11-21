@@ -12,6 +12,7 @@ import Chat from "./Chat";
 import LoadingScreen from "./LoadingScreen";
 import { startNavigationProgress } from "./NavigationProgress";
 import QueueSystem from "./QueueSystem";
+import PaperPicker from "./poster/PaperPicker";
 import Ticket from "./poster/Ticket";
 import VideoPlayer from "./VideoPlayer";
 import MusicSearch from "./room/MusicSearch";
@@ -92,6 +93,7 @@ export default function ActiveRoom({ username }: { username: string }) {
                     TuneVerse
                 </Link>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                    <PaperPicker />
                     {spotifyConnected ? (
                         <button onClick={disconnectSpotify} className="ink-link font-semibold" title="Disconnect Spotify">
                             Spotify: {spotifyUser?.display_name ?? "connected"}
