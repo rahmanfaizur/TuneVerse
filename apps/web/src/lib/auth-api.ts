@@ -1,5 +1,5 @@
 import { getApiUrl } from "./api";
-
+//test
 export async function postAuth(path: "login" | "signup" | "guest", body: Record<string, string>) {
     let res: Response;
     try {
