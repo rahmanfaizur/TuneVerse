@@ -52,14 +52,17 @@ export interface Room {
     isPersistent: boolean;
     hostFingerprint?: string;
     allowedFingerprints: string[];
+    djFingerprints?: string[]; // devices the host gave the controls to; survives a refresh
+    skipVotes?: string[];      // user ids voting to skip the song that's on now
 }
 
 // What clients are allowed to see. Fingerprints work like a password for getting
 // back into a room, so they never leave the server.
 export type PublicUser = Omit<User, "fingerprint">;
 
-export interface PublicRoom extends Omit<Room, "users" | "hostFingerprint" | "allowedFingerprints"> {
+export interface PublicRoom extends Omit<Room, "users" | "hostFingerprint" | "allowedFingerprints" | "djFingerprints"> {
     users: PublicUser[];
+    djIds: string[]; // user ids that can play, pause, seek and skip, besides the host
 }
 
 export interface RoomSummary {

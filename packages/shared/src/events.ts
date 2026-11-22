@@ -19,6 +19,8 @@ export const EVENTS = {
     PLAYER_SEEK: "PLAYER_SEEK",
     PLAYER_SKIP: "PLAYER_SKIP",       // <--- NEW
     PLAYER_PREVIOUS: "PLAYER_PREVIOUS", // <--- NEW
+    SKIP_VOTE: "SKIP_VOTE",           // Client -> Server: a listener wants this song gone
+    SET_DJ: "SET_DJ",                 // Client -> Server: host hands someone the controls (or takes them back)
 
     QUEUE_ADD: "QUEUE_ADD", // Client -> Server
     QUEUE_REMOVE: "QUEUE_REMOVE", // Client -> Server
