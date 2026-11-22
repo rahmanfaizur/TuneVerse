@@ -259,11 +259,22 @@ export const setupSocket = (io: Server) => {
             handleLeave(false);
         });
 
+        // Playback controls are for the host and DJs. Anyone else gets the room state back,
+        // so their player snaps to what everyone is hearing.
+        const controlRoom = (): string | undefined => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return undefined;
+            if (RoomStore.canControl(roomId, socket.id)) return roomId;
+            const room = RoomStore.getRoom(roomId);
+            if (room) socket.emit(EVENTS.ROOM_UPDATE, toPublicRoom(room));
+            return undefined;
+        };
+
         // --- 4. PLAYER CONTROLS ---
 
         // User clicked PLAY
         socket.on(EVENTS.PLAYER_PLAY, (payload: { videoId: string; timestamp: number }) => {
-            const roomId = socketToRoom.get(socket.id);
+            const roomId = controlRoom();
             if (!roomId) return;
 
             const updatedRoom = RoomStore.updatePlayback(roomId, {
@@ -280,7 +291,7 @@ export const setupSocket = (io: Server) => {
 
         // User clicked PAUSE
         socket.on(EVENTS.PLAYER_PAUSE, (payload: { timestamp: number }) => {
-            const roomId = socketToRoom.get(socket.id);
+            const roomId = controlRoom();
             if (!roomId) return;
 
             const updatedRoom = RoomStore.updatePlayback(roomId, {
@@ -296,7 +307,7 @@ export const setupSocket = (io: Server) => {
 
         // User SEEKED (jumped to a new time)
         socket.on(EVENTS.PLAYER_SEEK, (payload: { timestamp: number }) => {
-            const roomId = socketToRoom.get(socket.id);
+            const roomId = controlRoom();
             if (!roomId) return;
 
             // Seeking usually implies playing continues, or stays paused.
@@ -359,7 +370,7 @@ export const setupSocket = (io: Server) => {
         // --- 5. ENHANCED CONTROLS ---
 
         socket.on(EVENTS.PLAYER_SKIP, () => {
-            const roomId = socketToRoom.get(socket.id);
+            const roomId = controlRoom();
             if (!roomId) return;
             // Host check? For now, anyone can skip
             const updatedRoom = RoomStore.skipTrack(roomId);
@@ -370,7 +381,7 @@ export const setupSocket = (io: Server) => {
         });
 
         socket.on(EVENTS.PLAYER_PREVIOUS, () => {
-            const roomId = socketToRoom.get(socket.id);
+            const roomId = controlRoom();
             if (!roomId) return;
             const updatedRoom = RoomStore.previousTrack(roomId);
             if (updatedRoom) {
@@ -379,13 +390,35 @@ export const setupSocket = (io: Server) => {
             }
         });
 
+        socket.on(EVENTS.SKIP_VOTE, () => {
+            const roomId = socketToRoom.get(socket.id);
+            if (!roomId) return;
+            const result = RoomStore.voteSkip(roomId, socket.id);
+            if (!result) return;
+            io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(result.room));
+            if (result.skipped) io.to(roomId).emit(EVENTS.NOTICE, { message: "The room voted. Skipping." });
+        });
+
+        // Only the host hands out (or takes back) the controls.
+        socket.on(EVENTS.SET_DJ, (payload: { userId: string; isDj: boolean }) => {
+            const roomId = socketToRoom.get(socket.id);
+            const room = roomId ? RoomStore.getRoom(roomId) : undefined;
+            if (!roomId || !room || room.hostId !== socket.id || payload.userId === socket.id) return;
+            const updatedRoom = RoomStore.setDj(roomId, payload.userId, payload.isDj);
+            if (!updatedRoom) return;
+            io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
+            io.to(payload.userId).emit(EVENTS.NOTICE, {
+                message: payload.isDj ? "The host made you a DJ. The controls are yours too." : "You're not a DJ any more.",
+            });
+        });
+
         socket.on(EVENTS.QUEUE_REMOVE, (payload: { index: number }) => {
             const roomId = socketToRoom.get(socket.id);
             const room = roomId ? RoomStore.getRoom(roomId) : undefined;
             if (!roomId || !room) return;
 
             const track = room.queue[payload.index];
-            const canRemove = track && (room.hostId === socket.id || track.addedBy === usernameIn(roomId, socket.id));
+            const canRemove = track && (RoomStore.canControl(roomId, socket.id) || track.addedBy === usernameIn(roomId, socket.id));
             if (!canRemove) return;
 
             const updatedRoom = RoomStore.removeFromQueue(roomId, payload.index);

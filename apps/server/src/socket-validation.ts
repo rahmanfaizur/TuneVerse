@@ -34,6 +34,7 @@ const validators: Record<string, Validator> = {
     [EVENTS.QUEUE_ADD]: (p) => isText(p?.videoId, 200),
     [EVENTS.QUEUE_REMOVE]: (p) => Number.isInteger(p?.index) && p.index >= 0,
     [EVENTS.QUEUE_UPVOTE]: (p) => isText(p?.videoId, 200),
+    [EVENTS.SET_DJ]: (p) => isText(p?.userId, 64) && typeof p?.isDj === "boolean",
     [EVENTS.SEARCH_QUERY]: (p) => isText(p?.query, MAX_QUERY),
     [EVENTS.RECOMMENDATIONS_REQUEST]: (p) =>
         p === undefined || (typeof p === "object" && p !== null && (p.mood === undefined || isText(p.mood, 100))),
