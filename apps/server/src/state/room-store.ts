@@ -44,6 +44,8 @@ const scheduleCleanup = (room: Room, since = Date.now()) => {
     cleanupTimeouts.set(roomId, timeout);
 };
 
+export const skipVotesNeeded = (room: Pick<Room, "users">) => Math.floor(room.users.length / 2) + 1;
+
 const generateRoomId = (): string => {
     let id: string;
     do {
@@ -52,10 +54,14 @@ const generateRoomId = (): string => {
     return id;
 };
 
+const isDj = (room: Room, user: User) =>
+    !!user.fingerprint && (room.djFingerprints ?? []).includes(user.fingerprint);
+
 export const toPublicRoom = (room: Room): PublicRoom => {
-    const { hostFingerprint, allowedFingerprints, ...rest } = room;
+    const { hostFingerprint, allowedFingerprints, djFingerprints, ...rest } = room;
     return {
         ...rest,
+        djIds: room.users.filter((user) => isDj(room, user)).map((user) => user.id),
         users: room.users.map(({ fingerprint, ...user }) => user),
         messages: room.messages.slice(-CHAT_PAGE_SIZE),
     };
@@ -146,6 +152,7 @@ export const RoomStore = {
 
         // Remove user
         room.users = room.users.filter((u) => u.id !== userId);
+        room.skipVotes = (room.skipVotes ?? []).filter((id) => id !== userId);
 
         // If room is empty, delete it
         if (room.users.length === 0) {
@@ -194,6 +201,8 @@ export const RoomStore = {
         const room = rooms.get(roomId);
         if (!room) return undefined;
 
+        if (newState.videoId && newState.videoId !== room.playback.videoId) room.skipVotes = [];
+
         // Merge new state with existing state
         room.playback = {
             ...room.playback,
@@ -224,6 +233,7 @@ export const RoomStore = {
             room.playback.timestamp = 0;
             room.playback.lastUpdated = Date.now();
             room.playbackSource = video.source || 'youtube'; // <--- Set source
+            room.skipVotes = [];
             room.playback.meta = {
                 title: video.title,
                 artist: video.artist,
@@ -250,6 +260,7 @@ export const RoomStore = {
         const room = rooms.get(roomId);
         if (!room) return undefined;
 
+        room.skipVotes = [];
         if (room.queue.length > 0) {
             const nextVideo = room.queue.shift();
             room.playback = {
@@ -315,6 +326,39 @@ export const RoomStore = {
         if (end <= 0) return { messages: [], hasMore: false };
         const start = Math.max(0, end - CHAT_PAGE_SIZE);
         return { messages: messages.slice(start, end), hasMore: start > 0 };
+    },
+
+    // Play, pause, seek and skip: the host, plus anyone the host made a DJ.
+    canControl: (roomId: string, userId: string): boolean => {
+        const room = rooms.get(roomId);
+        if (!room) return false;
+        if (room.hostId === userId) return true;
+        const user = room.users.find((u) => u.id === userId);
+        return !!user && isDj(room, user);
+    },
+
+    setDj: (roomId: string, userId: string, makeDj: boolean): Room | undefined => {
+        const room = rooms.get(roomId);
+        const fingerprint = room?.users.find((u) => u.id === userId)?.fingerprint;
+        if (!room || !fingerprint) return undefined;
+        const djs = new Set(room.djFingerprints ?? []);
+        if (makeDj) djs.add(fingerprint); else djs.delete(fingerprint);
+        room.djFingerprints = [...djs];
+        return touch(room);
+    },
+
+    // Everyone else gets a vote. A majority of the room moves the song on.
+    voteSkip: (roomId: string, userId: string): { room: Room; skipped: boolean } | undefined => {
+        const room = rooms.get(roomId);
+        if (!room || !room.playback.videoId || !room.users.some((u) => u.id === userId)) return undefined;
+        const votes = new Set(room.skipVotes ?? []);
+        votes.add(userId);
+        room.skipVotes = [...votes];
+        if (votes.size >= skipVotesNeeded(room)) {
+            RoomStore.skipTrack(roomId);
+            return { room, skipped: true };
+        }
+        return { room: touch(room), skipped: false };
     },
 
     getAllRooms: (): Room[] => {
