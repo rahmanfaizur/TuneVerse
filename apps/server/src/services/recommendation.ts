@@ -30,6 +30,19 @@ interface RecommendationResult {
     source: 'youtube' | 'spotify';
 }
 
+const songPrompt = (seedList: string, mood: string | undefined, shape: string) => {
+    const playing = seedList && !seedList.includes('"Trending"') ? seedList : "";
+    return [
+        "You pick songs for a group listening together.",
+        playing && `They're listening to: ${playing}.`,
+        mood
+            ? `They asked for: "${mood}". It may be a mood, a genre, an artist or a song. If it names an artist (even written as one word), pick that artist's songs and artists like them. Otherwise pick 5 songs that clearly fit it, from different artists.`
+            : "Pick 5 songs that fit what they're listening to, from different artists.",
+        "Only real, well-known songs that can be found on YouTube or Spotify.",
+        `Reply with ONLY JSON, no markdown: ${shape}`,
+    ].filter(Boolean).join("\n");
+};
+
 export class RecommendationService {
     private static cache: Map<string, { timestamp: number, data: RecommendationResult[] }> = new Map();
     private static CACHE_TTL = 1000 * 60 * 60; // 1 hour
@@ -125,6 +138,9 @@ export class RecommendationService {
             results.push(...found.filter((item) => !!item));
         }
 
+        // The AI's picks couldn't be found (or the lookup hiccuped): search for the mood instead.
+        if (results.length === 0) return this.searchFallback(context, source, spotifyToken, mood);
+
         // Update cache
         if (results.length > 0) {
             this.cache.set(cacheKey, { timestamp: Date.now(), data: results });
@@ -134,20 +150,7 @@ export class RecommendationService {
     }
 
     private static async getGeminiRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
-        let prompt = `
-            You are a music recommendation engine. The user is listening to: ${seedList}.
-            Recommend 5 similar songs that fit the vibe and genre.
-        `;
-
-        if (mood) {
-            prompt += `\nThe user specifically requested songs with a "${mood}" mood/vibe. Prioritize this mood.`;
-        }
-
-        prompt += `
-            Return ONLY a JSON array of objects with "title" and "artist" keys. 
-            Do not include markdown formatting or explanations.
-            Example: [{"title": "Song Name", "artist": "Artist Name"}]
-        `;
+        const prompt = songPrompt(seedList, mood, '[{"title": "Song Name", "artist": "Artist Name"}]');
 
         let lastError: unknown;
         let result;
@@ -174,18 +177,16 @@ export class RecommendationService {
 
     // Groq speaks the OpenAI chat format. Free tier: a key from console.groq.com, no card.
     private static async getGroqRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
-        const prompt = `You are a music recommendation engine. The user is listening to: ${seedList}.
-Recommend 5 similar songs that fit the vibe and genre.${mood ? `\nThe user asked for a "${mood}" mood. Prioritize it.` : ""}
-Reply with ONLY a JSON object: {"songs": [{"title": "Song Name", "artist": "Artist Name"}]}`;
+        const prompt = songPrompt(seedList, mood, '{"songs": [{"title": "Song Name", "artist": "Artist Name"}]}');
 
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-                model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+                model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
                 messages: [{ role: "user", content: prompt }],
-                response_format: { type: "json_object" },
-                max_tokens: 500,
+                // Groq's strict JSON mode rejects whole answers over small slips, so read it ourselves.
+                max_tokens: 1000,
                 temperature: 0.7,
             }),
             signal: AbortSignal.timeout(20000),
@@ -193,8 +194,10 @@ Reply with ONLY a JSON object: {"songs": [{"title": "Song Name", "artist": "Arti
         if (!response.ok) throw new Error(`Groq ${response.status}: ${(await response.text()).slice(0, 200)}`);
 
         const result = await response.json() as { choices?: { message?: { content?: string } }[] };
+        const text = result.choices?.[0]?.message?.content ?? "";
+        const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
         try {
-            const parsed = JSON.parse(result.choices?.[0]?.message?.content ?? "{}");
+            const parsed = JSON.parse(json || "{}");
             const songs = Array.isArray(parsed) ? parsed : parsed.songs;
             return Array.isArray(songs) ? songs.filter((s) => s?.title) : [];
         } catch {
