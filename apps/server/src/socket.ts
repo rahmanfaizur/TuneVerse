@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tuneverse/shared";
-import { RoomStore, toPublicRoom } from "./state/room-store";
+import { MAX_QUEUE, RoomStore, toPublicRoom } from "./state/room-store";
 import { isValidPayload } from "./socket-validation";
 import { RecommendationService } from "./services/recommendation";
 import { YouTubeService, parseYouTubeLink } from "./services/youtube";
@@ -329,6 +329,10 @@ export const setupSocket = (io: Server) => {
             };
 
             const updatedRoom = RoomStore.addToQueue(roomId, video);
+            if (!updatedRoom) {
+                socket.emit(EVENTS.NOTICE, { message: `The queue is full (${MAX_QUEUE} songs). Play a few first.` });
+                return;
+            }
 
             if (updatedRoom) {
                 io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(updatedRoom));
@@ -406,19 +410,24 @@ export const setupSocket = (io: Server) => {
                     const roomId = socketToRoom.get(socket.id);
                     if (roomId) {
                         const videos = await YouTubeService.getPlaylistVideos(link.playlistId);
+                        let added = 0;
                         for (const video of videos) {
-                            RoomStore.addToQueue(roomId, {
+                            if (RoomStore.addToQueue(roomId, {
                                 ...video,
                                 addedBy: usernameIn(roomId, socket.id),
                                 votes: 0,
                                 voters: [],
                                 source: "youtube",
-                            });
+                            })) added++;
                         }
                         const room = RoomStore.getRoom(roomId);
                         if (room) io.to(roomId).emit(EVENTS.ROOM_UPDATE, toPublicRoom(room));
                         socket.emit(EVENTS.NOTICE, {
-                            message: videos.length ? `Added ${videos.length} songs to the queue` : "Couldn't read that playlist. Is it private?",
+                            message: !videos.length
+                                ? "Couldn't read that playlist. Is it private?"
+                                : added < videos.length
+                                    ? `Added ${added} songs. The queue is full (${MAX_QUEUE} songs).`
+                                    : `Added ${added} songs to the queue`,
                         });
                     }
                     socket.emit(EVENTS.SEARCH_RESULTS, []);

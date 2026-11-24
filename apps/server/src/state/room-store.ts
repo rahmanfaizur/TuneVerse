@@ -5,11 +5,19 @@ import { RoomPersistence, RoomSnapshot } from "./room-persistence";
 // The "Database"
 const rooms = new Map<string, Room>();
 const cleanupTimeouts = new Map<string, NodeJS.Timeout>(); // <--- Store timeouts
+const emptySince = new Map<string, number>(); // roomId -> when the last person left
 
 // Short enough to read out loud. Skips look-alike characters (0/O, 1/I).
 const ROOM_ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+// How long an empty room is kept. Guest rooms are throwaway; rooms made by an account
+// wait a week for their host, then go too, so old rooms don't pile up forever.
 const EMPTY_ROOM_GRACE_MS = 5 * 60 * 1000;
+const SAVED_ROOM_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+const graceFor = (room: Room) => (room.isPersistent ? SAVED_ROOM_GRACE_MS : EMPTY_ROOM_GRACE_MS);
+
+// Keeps one big playlist paste from growing a room without end.
+export const MAX_QUEUE = 200;
 
 // Every change goes through here, so the saved copy keeps up.
 const touch = (room: Room): Room => {
@@ -17,16 +25,20 @@ const touch = (room: Room): Room => {
     return room;
 };
 
-// An empty room hangs around for a few minutes in case people come back.
-const scheduleCleanup = (roomId: string) => {
+// An empty room hangs around for a while in case people come back.
+const scheduleCleanup = (room: Room, since = Date.now()) => {
+    const roomId = room.id;
     clearTimeout(cleanupTimeouts.get(roomId));
-    console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
+    emptySince.set(roomId, since);
+    const delay = Math.max(0, graceFor(room) - (Date.now() - since));
+    console.log(`⏳ Room ${roomId} empty. Cleanup in ${Math.round(delay / 60000)}m.`);
     const timeout = setTimeout(() => {
         rooms.delete(roomId);
         cleanupTimeouts.delete(roomId);
+        emptySince.delete(roomId);
         RoomPersistence.markDirty(roomId);
         console.log(`🗑️ Room ${roomId} deleted after grace period.`);
-    }, EMPTY_ROOM_GRACE_MS);
+    }, delay);
     cleanupTimeouts.set(roomId, timeout);
 };
 
@@ -117,6 +129,7 @@ export const RoomStore = {
             cleanupTimeouts.delete(roomId);
             console.log(`♻️ Room ${roomId} cleanup cancelled (user joined)`);
         }
+        emptySince.delete(roomId);
 
         // Prevent duplicates
         if (!room.users.find((u) => u.id === user.id)) {
@@ -134,13 +147,10 @@ export const RoomStore = {
 
         // If room is empty, delete it
         if (room.users.length === 0) {
-            if (!room.isPersistent) {
-                scheduleCleanup(roomId);
-                touch(room);
-                return undefined; // Room is effectively "gone" for this user, but exists for re-join
-            }
-            // If persistent, we keep it!
-            return touch(room);
+            scheduleCleanup(room);
+            touch(room);
+            // A guest room is effectively "gone" for this user, but exists for re-join.
+            return room.isPersistent ? room : undefined;
         }
 
         // NOTE: We do NOT reassign host here anymore. 
@@ -196,6 +206,8 @@ export const RoomStore = {
     addToQueue: (roomId: string, video: Video): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;
+
+        if (room.queue.length >= MAX_QUEUE) return undefined;
 
         // Initialize votes
         video.votes = 0;
@@ -300,11 +312,19 @@ export const RoomStore = {
 
     // Bring back the rooms saved before the last restart. Call before taking connections.
     restore: async (): Promise<void> => {
-        const snapshots: RoomSnapshot[] = await RoomPersistence.init((roomId) => rooms.get(roomId));
+        const snapshots: RoomSnapshot[] = await RoomPersistence.init((roomId) => {
+            const room = rooms.get(roomId);
+            return room && { room, emptySince: emptySince.get(roomId) };
+        });
         const now = Date.now();
 
-        for (const { room, savedAt } of snapshots) {
+        for (const { room, savedAt, emptySince: since = now } of snapshots) {
             if (!room?.id || rooms.has(room.id)) continue;
+            // Sat empty past its grace period while the server was down: let it go.
+            if (now - since >= graceFor(room)) {
+                RoomPersistence.markDirty(room.id);
+                continue;
+            }
 
             // Carry on from where the song had got to when the server stopped.
             const { playback } = room;
@@ -316,7 +336,7 @@ export const RoomStore = {
             room.users = [];
             rooms.set(room.id, room);
             // Nobody is in it yet. If nobody comes back, it goes the usual way.
-            if (!room.isPersistent) scheduleCleanup(room.id);
+            scheduleCleanup(room, since);
         }
         if (snapshots.length) console.log(`♻️ Restored ${rooms.size} room(s) from the last run.`);
     },

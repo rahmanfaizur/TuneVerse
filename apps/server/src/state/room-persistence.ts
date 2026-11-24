@@ -8,7 +8,10 @@ import type { Room } from "@tuneverse/shared";
 export interface RoomSnapshot {
     room: Room;
     savedAt: number; // when this copy was taken, to work out how far the song got
+    emptySince?: number; // when the last person left, so the cleanup clock survives restarts
 }
+
+type LiveRoom = { room: Room; emptySince?: number };
 
 const FLUSH_DELAY_MS = 1000;
 const RETRY_DELAY_MS = 5000;
@@ -17,7 +20,7 @@ const dirty = new Set<string>();
 let timer: NodeJS.Timeout | null = null;
 let running: Promise<boolean> | null = null;
 let enabled = false;
-let readRoom: (roomId: string) => Room | undefined = () => undefined;
+let readRoom: (roomId: string) => LiveRoom | undefined = () => undefined;
 
 const schedule = (delay: number) => {
     if (!enabled || timer) return;
@@ -29,9 +32,10 @@ const schedule = (delay: number) => {
 
 // Who's in the room is tied to live connections, which don't survive a restart.
 // People are added back as their browsers reconnect.
-const toSnapshot = (room: Room): RoomSnapshot => ({
+const toSnapshot = ({ room, emptySince }: LiveRoom): RoomSnapshot => ({
     room: { ...room, users: [] },
     savedAt: Date.now(),
+    emptySince,
 });
 
 const writeDirty = async (): Promise<boolean> => {
@@ -39,9 +43,9 @@ const writeDirty = async (): Promise<boolean> => {
     dirty.clear();
 
     const results = await Promise.allSettled(ids.map((id) => {
-        const room = readRoom(id);
-        if (!room) return prisma.liveRoom.deleteMany({ where: { id } });
-        const data = toSnapshot(room) as unknown as Prisma.InputJsonValue;
+        const live = readRoom(id);
+        if (!live) return prisma.liveRoom.deleteMany({ where: { id } });
+        const data = toSnapshot(live) as unknown as Prisma.InputJsonValue;
         return prisma.liveRoom.upsert({ where: { id }, create: { id, data }, update: { data } });
     }));
 
@@ -70,7 +74,7 @@ const flush = (): Promise<boolean> => {
 
 export const RoomPersistence = {
     // Returns the saved rooms. Without a database the server still runs, just without saving.
-    async init(getRoom: (roomId: string) => Room | undefined): Promise<RoomSnapshot[]> {
+    async init(getRoom: (roomId: string) => LiveRoom | undefined): Promise<RoomSnapshot[]> {
         readRoom = getRoom;
         if (!process.env.DATABASE_URL) {
             console.warn("No DATABASE_URL, so rooms won't survive a restart.");
