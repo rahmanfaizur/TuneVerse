@@ -34,7 +34,9 @@ Errors are `field` strips with a 6px pink left edge and plain words, no red (`<F
 ## Papers
 
 Four papers, picked with the swatches in every header (`<PaperPicker>`), saved per device.
-"Auto" follows the device: light = day print, dark = night print.
+Until someone picks, the page follows the device: light = day print, dark = night print.
+The first swatch is Shuffle (all four papers in a checker): it jumps to a random paper, never the one already showing.
+Hovering a swatch lifts it with a pink offset and shows its name on a small ink tag.
 
 | Paper | `data-paper` | Ground | Notes |
 |---|---|---|---|
