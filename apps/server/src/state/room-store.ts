@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
+import { RoomPersistence, RoomSnapshot } from "./room-persistence";
 
 // The "Database"
 const rooms = new Map<string, Room>();
@@ -7,6 +8,27 @@ const cleanupTimeouts = new Map<string, NodeJS.Timeout>(); // <--- Store timeout
 
 // Short enough to read out loud. Skips look-alike characters (0/O, 1/I).
 const ROOM_ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+const EMPTY_ROOM_GRACE_MS = 5 * 60 * 1000;
+
+// Every change goes through here, so the saved copy keeps up.
+const touch = (room: Room): Room => {
+    RoomPersistence.markDirty(room.id);
+    return room;
+};
+
+// An empty room hangs around for a few minutes in case people come back.
+const scheduleCleanup = (roomId: string) => {
+    clearTimeout(cleanupTimeouts.get(roomId));
+    console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
+    const timeout = setTimeout(() => {
+        rooms.delete(roomId);
+        cleanupTimeouts.delete(roomId);
+        RoomPersistence.markDirty(roomId);
+        console.log(`🗑️ Room ${roomId} deleted after grace period.`);
+    }, EMPTY_ROOM_GRACE_MS);
+    cleanupTimeouts.set(roomId, timeout);
+};
 
 const generateRoomId = (): string => {
     let id: string;
@@ -62,7 +84,7 @@ export const RoomStore = {
         };
 
         rooms.set(roomId, newRoom);
-        return newRoom;
+        return touch(newRoom);
     },
 
     getRoom: (roomId: string): Room | undefined => {
@@ -82,7 +104,7 @@ export const RoomStore = {
             room.messages.shift();
         }
 
-        return room;
+        return touch(room);
     },
 
     joinRoom: (roomId: string, user: User): Room | undefined => {
@@ -100,7 +122,7 @@ export const RoomStore = {
         if (!room.users.find((u) => u.id === user.id)) {
             room.users.push(user);
         }
-        return room;
+        return touch(room);
     },
 
     leaveRoom: (roomId: string, userId: string): Room | undefined => {
@@ -113,25 +135,18 @@ export const RoomStore = {
         // If room is empty, delete it
         if (room.users.length === 0) {
             if (!room.isPersistent) {
-                // Schedule cleanup instead of deleting immediately
-                console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
-                const timeout = setTimeout(() => {
-                    rooms.delete(roomId);
-                    cleanupTimeouts.delete(roomId);
-                    console.log(`🗑️ Room ${roomId} deleted after grace period.`);
-                }, 300000); // 5 minutes (300,000 ms) grace period
-
-                cleanupTimeouts.set(roomId, timeout);
+                scheduleCleanup(roomId);
+                touch(room);
                 return undefined; // Room is effectively "gone" for this user, but exists for re-join
             }
             // If persistent, we keep it!
-            return room;
+            return touch(room);
         }
 
         // NOTE: We do NOT reassign host here anymore. 
         // Host reassignment is handled by explicit call or timeout in socket.ts
 
-        return room;
+        return touch(room);
     },
 
     reassignHost: (roomId: string): Room | undefined => {
@@ -147,7 +162,7 @@ export const RoomStore = {
             console.log(`👑 New Host for ${roomId}: ${room.hostId}`);
         }
 
-        return room;
+        return touch(room);
     },
 
     addAllowedFingerprint: (roomId: string, fingerprint?: string): Room | undefined => {
@@ -157,7 +172,7 @@ export const RoomStore = {
         if (fingerprint && !room.allowedFingerprints.includes(fingerprint)) {
             room.allowedFingerprints.push(fingerprint);
         }
-        return room;
+        return touch(room);
     },
 
     updatePlayback: (
@@ -174,7 +189,7 @@ export const RoomStore = {
             lastUpdated: Date.now(), // Always track WHEN this happened
         };
 
-        return room;
+        return touch(room);
     },
 
     // 2. Helper to add video
@@ -206,7 +221,7 @@ export const RoomStore = {
             room.queue.shift();
         }
 
-        return room;
+        return touch(room);
     },
 
     removeFromQueue: (roomId: string, index: number): Room | undefined => {
@@ -214,7 +229,7 @@ export const RoomStore = {
         if (!room) return undefined;
 
         room.queue.splice(index, 1);
-        return room;
+        return touch(room);
     },
 
     skipTrack: (roomId: string): Room | undefined => {
@@ -245,7 +260,7 @@ export const RoomStore = {
                 lastUpdated: Date.now(),
             };
         }
-        return room;
+        return touch(room);
     },
 
     previousTrack: (roomId: string): Room | undefined => {
@@ -258,7 +273,7 @@ export const RoomStore = {
             room.playback.timestamp = 0;
             room.playback.lastUpdated = Date.now();
         }
-        return room;
+        return touch(room);
     },
 
     upvoteTrack: (roomId: string, videoId: string, userId: string): Room | undefined => {
@@ -276,10 +291,36 @@ export const RoomStore = {
         // Re-sort queue: Highest votes first
         room.queue.sort((a, b) => b.votes - a.votes);
 
-        return room;
+        return touch(room);
     },
 
     getAllRooms: (): Room[] => {
         return Array.from(rooms.values());
     },
+
+    // Bring back the rooms saved before the last restart. Call before taking connections.
+    restore: async (): Promise<void> => {
+        const snapshots: RoomSnapshot[] = await RoomPersistence.init((roomId) => rooms.get(roomId));
+        const now = Date.now();
+
+        for (const { room, savedAt } of snapshots) {
+            if (!room?.id || rooms.has(room.id)) continue;
+
+            // Carry on from where the song had got to when the server stopped.
+            const { playback } = room;
+            if (playback.status === "PLAYING") {
+                playback.timestamp += Math.max(0, savedAt - playback.lastUpdated) / 1000;
+            }
+            playback.lastUpdated = now;
+
+            room.users = [];
+            rooms.set(room.id, room);
+            // Nobody is in it yet. If nobody comes back, it goes the usual way.
+            if (!room.isPersistent) scheduleCleanup(room.id);
+        }
+        if (snapshots.length) console.log(`♻️ Restored ${rooms.size} room(s) from the last run.`);
+    },
+
+    // Save every room right away. Used when the server is shutting down.
+    saveAll: (): Promise<void> => RoomPersistence.flushAll([...rooms.keys()]),
 };

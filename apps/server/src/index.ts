@@ -57,6 +57,27 @@ setupSocket(io);
 
 const PORT = process.env.PORT || 4000;
 
-server.listen(PORT, () => {
-    console.log(`Server is up and running on port ${PORT}`);
-})
+// Load saved rooms first, so nobody reconnecting gets "Room not found".
+RoomStore.restore().finally(() => {
+    server.listen(PORT, () => {
+        console.log(`Server is up and running on port ${PORT}`);
+    });
+});
+
+// Render sends SIGTERM before a deploy or a free-plan sleep. Save rooms, then go.
+let shuttingDown = false;
+const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal}: saving rooms before shutting down`);
+    const forceExit = setTimeout(() => process.exit(0), 8000);
+    try {
+        await RoomStore.saveAll();
+    } catch (err) {
+        console.error("Couldn't save rooms on shutdown:", err);
+    }
+    clearTimeout(forceExit);
+    process.exit(0);
+};
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
