@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Night print paper with a riso "T": the pink layer slipped down-right of the blue one. -->
+  <rect width="32" height="32" rx="7" fill="#0e1647"/>
+  <path fill="#ff4fac" d="M9 9h17v6h-5.5v12h-6V15H9z"/>
+  <path fill="#7d95ff" d="M7 7h17v6h-5.5v12h-6V13H7z"/>
+</svg>
