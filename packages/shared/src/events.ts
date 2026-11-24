@@ -47,6 +47,7 @@ export const EVENTS = {
     // Chat
     CHAT_SEND: "CHAT_SEND",         // Client -> Server
     CHAT_RECEIVE: "CHAT_RECEIVE",   // Server -> Client
+    CHAT_HISTORY: "CHAT_HISTORY",   // Client -> Server with ack: older messages, a page at a time
 
     // Reactions
     EMOJI_REACTION: "EMOJI_REACTION", // Client -> Server -> Client (Broadcast)
@@ -62,3 +63,6 @@ export const EVENTS = {
     SPOTIFY_SEARCH: "SPOTIFY_SEARCH",
     SPOTIFY_SEARCH_RESULTS: "SPOTIFY_SEARCH_RESULTS",
 } as const;
+
+// Chat comes in pages: the room carries the newest page, older ones load on request.
+export const CHAT_PAGE_SIZE = 50;

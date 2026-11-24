@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "../../components/AuthLayout";
@@ -18,6 +18,12 @@ function LoginForm() {
     const [guestName, setGuestName] = useState("");
     const [error, setError] = useState("");
     const [busy, setBusy] = useState<"login" | "guest" | null>(null);
+    const guestInput = useRef<HTMLInputElement>(null);
+
+    // "Join as a guest" links land here with #guest: jump straight to the name box.
+    useEffect(() => {
+        if (window.location.hash === "#guest") guestInput.current?.focus();
+    }, []);
 
     const { login } = useAuth();
     const { login: socketLogin } = useSocket();
@@ -52,11 +58,12 @@ function LoginForm() {
                         </Link>
                     </p>
 
-                    <form onSubmit={(e: FormEvent) => { e.preventDefault(); signIn("guest", { username: guestName.trim() }); }} className="mt-6 bg-ink p-5 text-paper md:p-6">
+                    <form id="guest" onSubmit={(e: FormEvent) => { e.preventDefault(); signIn("guest", { username: guestName.trim() }); }} className="scroll-mt-6 mt-6 bg-ink p-5 text-paper md:p-6">
                         <h2 className="display text-3xl">Just here to listen?</h2>
                         <p className="mt-1 text-[15px] opacity-85">No account needed. Pick a name, or we&apos;ll make one up.</p>
                         <div className="mt-4 flex gap-2">
                             <input
+                                ref={guestInput}
                                 aria-label="Your name"
                                 placeholder="Your name"
                                 maxLength={30}

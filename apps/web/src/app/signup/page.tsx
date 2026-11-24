@@ -51,7 +51,11 @@ function SignupForm() {
                     <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="ink-link font-semibold">
                         Sign in
                     </Link>
-                    {" "}or join as a guest from there.
+                    {" "}or{" "}
+                    <Link href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}#guest`} className="ink-link font-semibold">
+                        join as a guest
+                    </Link>
+                    .
                 </p>
             }
         >

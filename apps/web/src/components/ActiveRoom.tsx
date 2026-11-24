@@ -166,7 +166,7 @@ export default function ActiveRoom({ username }: { username: string }) {
 
                         {/* Stays mounted so messages keep arriving while another tab is open. */}
                         <div className={activeTab === "chat" ? "h-full" : "hidden"}>
-                            <Chat username={username} initialMessages={room.messages} />
+                            <Chat key={room.id} username={username} initialMessages={room.messages} />
                         </div>
 
                         {activeTab === "people" && (

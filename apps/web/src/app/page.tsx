@@ -46,7 +46,7 @@ export default function Home() {
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link href={startHref} className={buttonClass("primary")}>Start listening</Link>
-            {!user && <Link href="/login" className={buttonClass("outline")}>Join as a guest</Link>}
+            {!user && <Link href="/login#guest" className={buttonClass("outline")}>Join as a guest</Link>}
           </div>
         </div>
 

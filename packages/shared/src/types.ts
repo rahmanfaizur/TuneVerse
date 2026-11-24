@@ -121,3 +121,9 @@ export interface SearchResult {
     thumbnail: string;
     channelTitle: string;
 }
+
+// One page of older chat, answered to CHAT_HISTORY.
+export interface ChatHistoryPage {
+    messages: Message[];
+    hasMore: boolean;
+}

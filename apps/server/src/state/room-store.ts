@@ -1,12 +1,48 @@
 import { randomBytes } from "crypto";
-import { PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
+import { CHAT_PAGE_SIZE, ChatHistoryPage, PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
+import { RoomPersistence, RoomSnapshot } from "./room-persistence";
 
 // The "Database"
 const rooms = new Map<string, Room>();
 const cleanupTimeouts = new Map<string, NodeJS.Timeout>(); // <--- Store timeouts
+const emptySince = new Map<string, number>(); // roomId -> when the last person left
 
 // Short enough to read out loud. Skips look-alike characters (0/O, 1/I).
 const ROOM_ID_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+// How long an empty room is kept. Guest rooms are throwaway; rooms made by an account
+// wait a week for their host, then go too, so old rooms don't pile up forever.
+const EMPTY_ROOM_GRACE_MS = 5 * 60 * 1000;
+const SAVED_ROOM_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+const graceFor = (room: Room) => (room.isPersistent ? SAVED_ROOM_GRACE_MS : EMPTY_ROOM_GRACE_MS);
+
+// Keeps one big playlist paste from growing a room without end.
+export const MAX_QUEUE = 200;
+// Chat kept per room. Only the newest page rides along with room updates.
+const MAX_MESSAGES = 300;
+
+// Every change goes through here, so the saved copy keeps up.
+const touch = (room: Room): Room => {
+    RoomPersistence.markDirty(room.id);
+    return room;
+};
+
+// An empty room hangs around for a while in case people come back.
+const scheduleCleanup = (room: Room, since = Date.now()) => {
+    const roomId = room.id;
+    clearTimeout(cleanupTimeouts.get(roomId));
+    emptySince.set(roomId, since);
+    const delay = Math.max(0, graceFor(room) - (Date.now() - since));
+    console.log(`⏳ Room ${roomId} empty. Cleanup in ${Math.round(delay / 60000)}m.`);
+    const timeout = setTimeout(() => {
+        rooms.delete(roomId);
+        cleanupTimeouts.delete(roomId);
+        emptySince.delete(roomId);
+        RoomPersistence.markDirty(roomId);
+        console.log(`🗑️ Room ${roomId} deleted after grace period.`);
+    }, delay);
+    cleanupTimeouts.set(roomId, timeout);
+};
 
 const generateRoomId = (): string => {
     let id: string;
@@ -21,6 +57,7 @@ export const toPublicRoom = (room: Room): PublicRoom => {
     return {
         ...rest,
         users: room.users.map(({ fingerprint, ...user }) => user),
+        messages: room.messages.slice(-CHAT_PAGE_SIZE),
     };
 };
 
@@ -62,7 +99,7 @@ export const RoomStore = {
         };
 
         rooms.set(roomId, newRoom);
-        return newRoom;
+        return touch(newRoom);
     },
 
     getRoom: (roomId: string): Room | undefined => {
@@ -77,12 +114,11 @@ export const RoomStore = {
 
         room.messages.push(message);
 
-        // Keep last 50 messages
-        if (room.messages.length > 50) {
-            room.messages.shift();
+        if (room.messages.length > MAX_MESSAGES) {
+            room.messages.splice(0, room.messages.length - MAX_MESSAGES);
         }
 
-        return room;
+        return touch(room);
     },
 
     joinRoom: (roomId: string, user: User): Room | undefined => {
@@ -95,12 +131,13 @@ export const RoomStore = {
             cleanupTimeouts.delete(roomId);
             console.log(`♻️ Room ${roomId} cleanup cancelled (user joined)`);
         }
+        emptySince.delete(roomId);
 
         // Prevent duplicates
         if (!room.users.find((u) => u.id === user.id)) {
             room.users.push(user);
         }
-        return room;
+        return touch(room);
     },
 
     leaveRoom: (roomId: string, userId: string): Room | undefined => {
@@ -112,26 +149,16 @@ export const RoomStore = {
 
         // If room is empty, delete it
         if (room.users.length === 0) {
-            if (!room.isPersistent) {
-                // Schedule cleanup instead of deleting immediately
-                console.log(`⏳ Room ${roomId} empty. Scheduled for cleanup in 5m.`);
-                const timeout = setTimeout(() => {
-                    rooms.delete(roomId);
-                    cleanupTimeouts.delete(roomId);
-                    console.log(`🗑️ Room ${roomId} deleted after grace period.`);
-                }, 300000); // 5 minutes (300,000 ms) grace period
-
-                cleanupTimeouts.set(roomId, timeout);
-                return undefined; // Room is effectively "gone" for this user, but exists for re-join
-            }
-            // If persistent, we keep it!
-            return room;
+            scheduleCleanup(room);
+            touch(room);
+            // A guest room is effectively "gone" for this user, but exists for re-join.
+            return room.isPersistent ? room : undefined;
         }
 
         // NOTE: We do NOT reassign host here anymore. 
         // Host reassignment is handled by explicit call or timeout in socket.ts
 
-        return room;
+        return touch(room);
     },
 
     reassignHost: (roomId: string): Room | undefined => {
@@ -147,7 +174,7 @@ export const RoomStore = {
             console.log(`👑 New Host for ${roomId}: ${room.hostId}`);
         }
 
-        return room;
+        return touch(room);
     },
 
     addAllowedFingerprint: (roomId: string, fingerprint?: string): Room | undefined => {
@@ -157,7 +184,7 @@ export const RoomStore = {
         if (fingerprint && !room.allowedFingerprints.includes(fingerprint)) {
             room.allowedFingerprints.push(fingerprint);
         }
-        return room;
+        return touch(room);
     },
 
     updatePlayback: (
@@ -174,13 +201,15 @@ export const RoomStore = {
             lastUpdated: Date.now(), // Always track WHEN this happened
         };
 
-        return room;
+        return touch(room);
     },
 
     // 2. Helper to add video
     addToQueue: (roomId: string, video: Video): Room | undefined => {
         const room = rooms.get(roomId);
         if (!room) return undefined;
+
+        if (room.queue.length >= MAX_QUEUE) return undefined;
 
         // Initialize votes
         video.votes = 0;
@@ -206,7 +235,7 @@ export const RoomStore = {
             room.queue.shift();
         }
 
-        return room;
+        return touch(room);
     },
 
     removeFromQueue: (roomId: string, index: number): Room | undefined => {
@@ -214,7 +243,7 @@ export const RoomStore = {
         if (!room) return undefined;
 
         room.queue.splice(index, 1);
-        return room;
+        return touch(room);
     },
 
     skipTrack: (roomId: string): Room | undefined => {
@@ -245,7 +274,7 @@ export const RoomStore = {
                 lastUpdated: Date.now(),
             };
         }
-        return room;
+        return touch(room);
     },
 
     previousTrack: (roomId: string): Room | undefined => {
@@ -258,7 +287,7 @@ export const RoomStore = {
             room.playback.timestamp = 0;
             room.playback.lastUpdated = Date.now();
         }
-        return room;
+        return touch(room);
     },
 
     upvoteTrack: (roomId: string, videoId: string, userId: string): Room | undefined => {
@@ -276,10 +305,53 @@ export const RoomStore = {
         // Re-sort queue: Highest votes first
         room.queue.sort((a, b) => b.votes - a.votes);
 
-        return room;
+        return touch(room);
+    },
+
+    // The page of chat just before a message the client already has.
+    chatHistory: (roomId: string, beforeId: string): ChatHistoryPage => {
+        const messages = rooms.get(roomId)?.messages ?? [];
+        const end = messages.findIndex((m) => m.id === beforeId);
+        if (end <= 0) return { messages: [], hasMore: false };
+        const start = Math.max(0, end - CHAT_PAGE_SIZE);
+        return { messages: messages.slice(start, end), hasMore: start > 0 };
     },
 
     getAllRooms: (): Room[] => {
         return Array.from(rooms.values());
     },
+
+    // Bring back the rooms saved before the last restart. Call before taking connections.
+    restore: async (): Promise<void> => {
+        const snapshots: RoomSnapshot[] = await RoomPersistence.init((roomId) => {
+            const room = rooms.get(roomId);
+            return room && { room, emptySince: emptySince.get(roomId) };
+        });
+        const now = Date.now();
+
+        for (const { room, savedAt, emptySince: since = now } of snapshots) {
+            if (!room?.id || rooms.has(room.id)) continue;
+            // Sat empty past its grace period while the server was down: let it go.
+            if (now - since >= graceFor(room)) {
+                RoomPersistence.markDirty(room.id);
+                continue;
+            }
+
+            // Carry on from where the song had got to when the server stopped.
+            const { playback } = room;
+            if (playback.status === "PLAYING") {
+                playback.timestamp += Math.max(0, savedAt - playback.lastUpdated) / 1000;
+            }
+            playback.lastUpdated = now;
+
+            room.users = [];
+            rooms.set(room.id, room);
+            // Nobody is in it yet. If nobody comes back, it goes the usual way.
+            scheduleCleanup(room, since);
+        }
+        if (snapshots.length) console.log(`♻️ Restored ${rooms.size} room(s) from the last run.`);
+    },
+
+    // Save every room right away. Used when the server is shutting down.
+    saveAll: (): Promise<void> => RoomPersistence.flushAll([...rooms.keys()]),
 };
