@@ -2,6 +2,7 @@ import SpotifyWebApi from 'spotify-web-api-node';
 
 const SCOPES = [
     'user-read-private',
+    'user-read-email', // the in-browser player refuses logins without it
     'user-read-playback-state',
     'user-modify-playback-state',
     'streaming',
