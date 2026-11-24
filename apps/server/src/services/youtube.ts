@@ -25,6 +25,25 @@ const toVideo = (video: YTNodes.Video): YouTubeVideo => ({
     channelTitle: video.author?.name ?? "",
 });
 
+// YouTube is moving search results to a newer layout ("lockups"). Some sessions get it,
+// some don't, so read both.
+const lockupToVideo = (item: YTNodes.LockupView): YouTubeVideo => ({
+    id: item.content_id as string,
+    title: item.metadata?.title?.toString() ?? "Untitled",
+    thumbnail: `https://i.ytimg.com/vi/${item.content_id}/hqdefault.jpg`,
+    channelTitle: "",
+});
+
+const searchOnce = async (youtube: Innertube, query: string): Promise<YouTubeVideo[]> => {
+    const results = await youtube.search(query, { type: "video" });
+    return [
+        ...results.videos.filterType(YTNodes.Video).map(toVideo),
+        ...results.videos.filterType(YTNodes.LockupView)
+            .filter((item) => item.content_type === "VIDEO" && !!item.content_id)
+            .map(lockupToVideo),
+    ];
+};
+
 // Real uploads should beat the slowed + reverb re-uploads that often rank first.
 const looksOfficial = ({ title, channelTitle }: YouTubeVideo) =>
     /vevo|- topic$/i.test(channelTitle) || /official (music )?(video|audio)/i.test(title);
@@ -47,9 +66,12 @@ export const parseYouTubeLink = (input: string) => {
 
 export const YouTubeService = {
     async search(query: string, limit = 8): Promise<YouTubeVideo[]> {
-        const youtube = await getClient();
-        const results = await youtube.search(query, { type: "video" });
-        const videos = results.videos.filterType(YTNodes.Video).map(toVideo);
+        let videos = await searchOnce(await getClient(), query);
+        if (videos.length === 0) {
+            // Nothing we could read: start a fresh session (which may get the other layout) and try once more.
+            clientPromise = null;
+            videos = await searchOnce(await getClient(), query);
+        }
 
         return [...videos.filter(looksOfficial), ...videos.filter((video) => !looksOfficial(video))].slice(0, limit);
     },

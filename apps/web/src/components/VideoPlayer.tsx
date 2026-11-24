@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import ReactPlayer from "react-player/youtube";
 import SpotifyPlayer from "./SpotifyPlayer";
 import { PublicRoom, EVENTS } from "@tuneverse/shared";
@@ -8,6 +8,7 @@ import { Socket } from "socket.io-client";
 import { SyncEngine } from "../lib/sync-engine";
 import PlayPicker from "./room/PlayPicker";
 import { MusicSource, SOURCE_NAMES } from "./room/music";
+import SeekBar from "./room/SeekBar";
 
 // The reactions people send are emoji on purpose; they are content, not icons. avoid-ai-design-ignore: I2
 const REACTIONS = ["🔥", "❤️", "😂", "😮", "🎉"];
@@ -118,6 +119,27 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
         setBlockedAt(null);
     };
 
+    // Who drives playback: the host, and anyone the host made a DJ. Everyone else votes to skip.
+    const myId = socket?.id;
+    const canControl = !!myId && (room.hostId === myId || room.djIds.includes(myId));
+    const skipVotes = room.skipVotes ?? [];
+    const skipVotesNeeded = Math.floor(room.users.length / 2) + 1;
+    const hasVotedSkip = !!myId && skipVotes.includes(myId);
+
+    // Progress as the room hears it, ticking while a song plays.
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (room.playback.status !== "PLAYING") return;
+        const timer = setInterval(() => setTick((n) => n + 1), 500);
+        return () => clearInterval(timer);
+    }, [room.playback.status]);
+
+    // Each player reports the song's length; keep it with the song it belongs to.
+    const [length, setLength] = useState<{ videoId: string | null; seconds: number }>({ videoId: null, seconds: 0 });
+    const playingId = room.playback.videoId;
+    const reportDuration = useCallback((seconds: number) => setLength({ videoId: playingId, seconds }), [playingId]);
+    const duration = length.videoId === room.playback.videoId ? length.seconds : 0;
+
     // 4. User Controls
     const handlePlay = () => {
         if (!socket || isSeekingRef.current) return;
@@ -139,13 +161,19 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
     };
 
     const handleSeek = (seconds: number) => {
-        // If we are currently "Auto-Syncing", IGNORE this event.
-        // It wasn't the user. It was us.
-        if (isSeekingRef.current) return;
-
-        if (socket) {
-            socket.emit(EVENTS.PLAYER_SEEK, { timestamp: seconds });
+        if (!socket || !canControl) return;
+        socket.emit(EVENTS.PLAYER_SEEK, { timestamp: seconds });
+        // Jump here straight away rather than waiting for the room to echo it back.
+        if (room.playbackSource === "youtube" && playerRef.current) {
+            isSeekingRef.current = true;
+            playerRef.current.seekTo(seconds, "seconds");
+            setTimeout(() => { isSeekingRef.current = false; }, 1000);
         }
+    };
+
+    const voteSkip = () => {
+        if (!socket) return;
+        socket.emit(EVENTS.SKIP_VOTE); // a second tap takes the vote back
     };
 
     const handleEnded = () => {
@@ -205,16 +233,17 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                 ) : (
                     <>
                         <div className={room.playbackSource === 'spotify' ? 'w-full h-full' : 'hidden'}>
-                            <SpotifyPlayer room={room} socket={socket} getServerTime={getServerTime} />
+                            <SpotifyPlayer room={room} socket={socket} getServerTime={getServerTime} onDuration={reportDuration} />
                         </div>
-                        <div className={room.playbackSource === 'youtube' ? 'w-full h-full' : 'hidden'}>
+                        <div className={room.playbackSource === 'youtube' ? 'relative w-full h-full' : 'hidden'}>
                             <ReactPlayer
                                 ref={playerRef}
                                 url={`https://www.youtube.com/watch?v=${room.playback.videoId}`}
                                 width="100%"
                                 height="100%"
                                 playing={room.playback.status === "PLAYING" && room.playbackSource === 'youtube'}
-                                controls={true}
+                                // Our own controls drive the room; YouTube's would only move this one screen.
+                                controls={false}
                                 config={{
                                     playerVars: {
                                         origin: typeof window !== "undefined" ? window.location.origin : undefined,
@@ -223,16 +252,16 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                 }}
 
                                 onReady={() => setIsReady(true)}
+                                onDuration={reportDuration}
                                 onStart={() => setBlockedAt(null)}
 
                                 onProgress={checkDrift}
                                 progressInterval={500}
 
-                                onPlay={handlePlay}
-                                onPause={handlePause}
-                                onSeek={handleSeek}
                                 onEnded={handleEnded}
                             />
+                            {/* Clicking the video would pause it for this screen only, out of sync with the room. */}
+                            <div aria-hidden className="absolute inset-0" />
                         </div>
                         {isBlockedByBrowser && (
                             <button
@@ -260,8 +289,10 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
             </div>
 
             {room.playback.videoId && (
-                <div className="relative z-10 flex shrink-0 items-center gap-4 border-t-2 border-rule bg-paper px-4 py-3">
-                    {room.hostId === socket?.id ? (
+                <div className="relative z-10 shrink-0 border-t-2 border-rule bg-paper px-4 pb-3 pt-2">
+                <SeekBar position={getServerTime()} duration={duration} canSeek={canControl} onSeek={handleSeek} />
+                <div className="mt-1 flex items-center gap-4">
+                    {canControl ? (
                         <div className="flex shrink-0 items-center gap-3">
                             <button onClick={handlePrevious} aria-label="Restart track" className="p-1 transition-colors hover:text-blue">
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg>
@@ -279,7 +310,19 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
                             </button>
                         </div>
-                    ) : null}
+                    ) : (
+                        <button
+                            onClick={voteSkip}
+                            aria-pressed={hasVotedSkip}
+                            aria-label={hasVotedSkip ? `Take back your skip vote, ${skipVotes.length} of ${skipVotesNeeded} votes` : `Vote to skip, ${skipVotes.length} of ${skipVotesNeeded} votes`}
+                            title={hasVotedSkip ? "Tap again to take your vote back" : undefined}
+                            className={`flex shrink-0 items-center gap-2 border-2 px-3 py-1.5 text-sm font-bold transition-colors ${hasVotedSkip ? "border-pink bg-pink text-on-pink hover:border-ink" : "border-ink hover:bg-ink hover:text-paper"}`}
+                        >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
+                            {hasVotedSkip ? "Voted" : "Skip"}
+                            <span className="tabular-nums opacity-80">{skipVotes.length}/{skipVotesNeeded}</span>
+                        </button>
+                    )}
 
                     <p className="min-w-0 flex-1 truncate text-sm">
                         {nowPlaying && <span className="block truncate font-bold">{nowPlaying}</span>}
@@ -319,6 +362,7 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                             </button>
                         </div>
                     </div>
+                </div>
                 </div>
             )}
         </div>

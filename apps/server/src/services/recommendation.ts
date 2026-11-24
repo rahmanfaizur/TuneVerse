@@ -1,18 +1,20 @@
-import { fetch, Agent } from "undici";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import SpotifyService from "./spotify";
 import { YouTubeService } from "./youtube";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
-const GEMINI_TIMEOUT_MS = 15000;
+// At busy times the free tier answers in about 20s, so 15 was cutting it off.
+const GEMINI_TIMEOUT_MS = 30000;
 
-// The "latest" alias keeps working when Google retires a specific version, which is
-// what broke this feature last time.
-const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-flash-lite-latest",
-    generationConfig: { responseMimeType: "application/json" },
-}, { timeout: GEMINI_TIMEOUT_MS });
+// The "latest" aliases keep working when Google retires a specific version, which is
+// what broke this feature last time. When one is overloaded (503), the other often isn't.
+const GEMINI_MODELS = [process.env.GEMINI_MODEL || "gemini-flash-lite-latest", "gemini-flash-latest"]
+    .filter((name, i, all) => all.indexOf(name) === i)
+    .map((name) => genAI.getGenerativeModel({
+        model: name,
+        generationConfig: { responseMimeType: "application/json" },
+    }, { timeout: GEMINI_TIMEOUT_MS }));
 
 interface TrackContext {
     title: string;
@@ -28,12 +30,26 @@ interface RecommendationResult {
     source: 'youtube' | 'spotify';
 }
 
+const songPrompt = (seedList: string, mood: string | undefined, shape: string) => {
+    const playing = seedList && !seedList.includes('"Trending"') ? seedList : "";
+    return [
+        "You pick songs for a group listening together.",
+        playing && `They're listening to: ${playing}.`,
+        mood
+            ? `They asked for: "${mood}". It may be a mood, a genre, an artist or a song. If it names an artist (even written as one word), pick that artist's songs and artists like them. Otherwise pick 5 songs that clearly fit it, from different artists.`
+            : "Pick 5 songs that fit what they're listening to, from different artists.",
+        "Only real, well-known songs that can be found on YouTube or Spotify.",
+        `Reply with ONLY JSON, no markdown: ${shape}`,
+    ].filter(Boolean).join("\n");
+};
+
 export class RecommendationService {
     private static cache: Map<string, { timestamp: number, data: RecommendationResult[] }> = new Map();
     private static CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
     /**
-     * Get recommendations using Hybrid approach (Gemini -> Fallback to Hugging Face)
+     * Gemini first, then Groq (both free tiers), and if every AI is down, a plain search
+     * for the mood, so the vibe bubble always comes back with something.
      */
     static async getRecommendations(
         context: TrackContext[],
@@ -67,22 +83,23 @@ export class RecommendationService {
             }
         }
 
-        // 2. Fallback to Hugging Face if Gemini failed or returned nothing
-        if (suggestions.length === 0 && process.env.HF_TOKEN) {
+        // 2. Groq's free tier, if a key is set and Gemini came back empty-handed
+        if (suggestions.length === 0 && process.env.GROQ_API_KEY) {
             try {
-                console.log("Attempting Hugging Face recommendations (Fallback)...");
-                suggestions = await this.getHuggingFaceRecommendations(seedList, mood);
+                console.log("Attempting Groq recommendations (fallback)...");
+                suggestions = await this.getGroqRecommendations(seedList, mood);
             } catch (error: any) {
-                console.error("Hugging Face recommendation failed:", error.message);
+                console.error("Groq recommendation failed:", error.message);
             }
         }
 
+        // 3. No AI answered: search for the mood itself instead
         if (suggestions.length === 0) {
-            console.warn("All recommendation services failed or returned empty.");
-            return [];
+            console.warn("No AI answered, falling back to a plain search.");
+            return this.searchFallback(context, source, spotifyToken, mood);
         }
 
-        // 3. Fetch Details based on Source
+        // 4. Find each suggestion on the room's source
         const results: RecommendationResult[] = [];
 
         if (source === 'spotify' && spotifyToken) {
@@ -121,6 +138,9 @@ export class RecommendationService {
             results.push(...found.filter((item) => !!item));
         }
 
+        // The AI's picks couldn't be found (or the lookup hiccuped): search for the mood instead.
+        if (results.length === 0) return this.searchFallback(context, source, spotifyToken, mood);
+
         // Update cache
         if (results.length > 0) {
             this.cache.set(cacheKey, { timestamp: Date.now(), data: results });
@@ -130,22 +150,20 @@ export class RecommendationService {
     }
 
     private static async getGeminiRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
-        let prompt = `
-            You are a music recommendation engine. The user is listening to: ${seedList}.
-            Recommend 5 similar songs that fit the vibe and genre.
-        `;
+        const prompt = songPrompt(seedList, mood, '[{"title": "Song Name", "artist": "Artist Name"}]');
 
-        if (mood) {
-            prompt += `\nThe user specifically requested songs with a "${mood}" mood/vibe. Prioritize this mood.`;
+        let lastError: unknown;
+        let result;
+        for (const model of GEMINI_MODELS) {
+            try {
+                result = await model.generateContent(prompt);
+                break;
+            } catch (error) {
+                lastError = error;
+                console.warn(`Gemini ${model.model} failed, trying the next one:`, (error as Error).message?.slice(0, 120));
+            }
         }
-
-        prompt += `
-            Return ONLY a JSON array of objects with "title" and "artist" keys. 
-            Do not include markdown formatting or explanations.
-            Example: [{"title": "Song Name", "artist": "Artist Name"}]
-        `;
-
-        const result = await model.generateContent(prompt);
+        if (!result) throw lastError;
         const response = result.response;
         const text = response.text().replace(/```json|```/g, '').trim();
 
@@ -157,94 +175,60 @@ export class RecommendationService {
         }
     }
 
-    private static async getHuggingFaceRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
-        const modelId = process.env.HF_MODEL || "openai/gpt-oss-20b";
-        const apiUrl = "https://router.huggingface.co/v1/chat/completions";
+    // Groq speaks the OpenAI chat format. Free tier: a key from console.groq.com, no card.
+    private static async getGroqRecommendations(seedList: string, mood?: string): Promise<{ title: string; artist: string }[]> {
+        const prompt = songPrompt(seedList, mood, '{"songs": [{"title": "Song Name", "artist": "Artist Name"}]}');
 
-        if (!process.env.HF_TOKEN) {
-            console.error("HF_TOKEN is missing in environment variables!");
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+                messages: [{ role: "user", content: prompt }],
+                // Groq's strict JSON mode rejects whole answers over small slips, so read it ourselves.
+                max_tokens: 1000,
+                temperature: 0.7,
+            }),
+            signal: AbortSignal.timeout(20000),
+        });
+        if (!response.ok) throw new Error(`Groq ${response.status}: ${(await response.text()).slice(0, 200)}`);
+
+        const result = await response.json() as { choices?: { message?: { content?: string } }[] };
+        const text = result.choices?.[0]?.message?.content ?? "";
+        const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+        try {
+            const parsed = JSON.parse(json || "{}");
+            const songs = Array.isArray(parsed) ? parsed : parsed.songs;
+            return Array.isArray(songs) ? songs.filter((s) => s?.title) : [];
+        } catch {
             return [];
         }
+    }
 
-        let promptContent = `You are a music recommendation engine. The user is listening to: ${seedList}.
-Recommend 5 similar songs that fit the vibe and genre.`;
-
-        if (mood) {
-            promptContent += `\nThe user specifically requested songs with a "${mood}" mood/vibe. Prioritize this mood.`;
-        }
-
-        promptContent += `\n\nReturn ONLY a JSON array of objects with "title" and "artist" keys.
-Do not include markdown formatting or explanations.
-Example: [{"title": "Song Name", "artist": "Artist Name"}]`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
+    // Last resort, no AI needed: search the room's source for the mood (or the current song).
+    private static async searchFallback(
+        context: TrackContext[],
+        source: 'youtube' | 'spotify',
+        spotifyToken?: string,
+        mood?: string
+    ): Promise<RecommendationResult[]> {
+        const seed = context[0];
+        const query = mood ? `${mood} song official audio` : seed && seed.title !== "Trending" ? `songs like ${seed.title} ${seed.artist}` : "popular songs";
         try {
-            const dispatcher = new Agent({
-                connect: {
-                    timeout: 30000 // 30 seconds connection timeout
-                }
-            });
-
-            const response = await fetch(apiUrl, {
-                dispatcher,
-                headers: {
-                    Authorization: `Bearer ${process.env.HF_TOKEN}`,
-                    "Content-Type": "application/json",
-                },
-                method: "POST",
-                body: JSON.stringify({
-                    model: modelId,
-                    messages: [
-                        { role: "user", content: promptContent }
-                    ],
-                    max_tokens: 500,
-                    temperature: 0.7
-                }),
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`HF API Error: ${response.status} ${response.statusText} - ${errorText}`);
+            if (source === 'spotify' && spotifyToken) {
+                const tracks = await SpotifyService.searchTracks(spotifyToken, query, 5);
+                return tracks.map((track) => ({
+                    id: track.id, title: track.title, artist: track.artist,
+                    thumbnail: track.albumArt, uri: track.uri, source: 'spotify' as const,
+                }));
             }
-
-            const result = await response.json() as any;
-            let text = "";
-
-            if (result.choices && result.choices.length > 0 && result.choices[0].message) {
-                text = result.choices[0].message.content;
-            } else {
-                console.warn("Unexpected HF response format:", result);
-                return [];
-            }
-
-            // Clean up text to find JSON
-            text = text.replace(/```json|```/g, '').trim();
-
-            const jsonStart = text.indexOf('[');
-            const jsonEnd = text.lastIndexOf(']');
-
-            if (jsonStart !== -1 && jsonEnd !== -1) {
-                text = text.substring(jsonStart, jsonEnd + 1);
-            }
-
-            try {
-                return JSON.parse(text);
-            } catch (e) {
-                console.error("Failed to parse HF response:", text);
-                return [];
-            }
-        } catch (error: any) {
-            clearTimeout(timeoutId);
-            console.error("Hugging Face recommendation failed:", error);
-            if (error.name === 'AbortError') {
-                console.error("Request timed out after 30 seconds");
-            }
-            if (error.cause) console.error("Cause:", error.cause);
+            const videos = await YouTubeService.search(query, 5);
+            return videos.map((video) => ({
+                id: video.id, title: video.title, artist: video.channelTitle,
+                thumbnail: video.thumbnail, source: 'youtube' as const,
+            }));
+        } catch (error) {
+            console.error("Search fallback failed:", error);
             return [];
         }
     }

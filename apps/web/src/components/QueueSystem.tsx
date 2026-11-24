@@ -18,11 +18,25 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     const { spotifyToken } = useSpotify();
     const [suggestions, setSuggestions] = useState<MusicResult[]>([]);
     const [isSuggesting, setIsSuggesting] = useState(false);
-    const [showMoods, setShowMoods] = useState(false);
     const [customMood, setCustomMood] = useState("");
+    const [askedMood, setAskedMood] = useState("");
+    // Folded away, the queue gets the room. Remembered per device.
+    const [vibeOpen, setVibeOpen] = useState(true);
+    useEffect(() => {
+        try {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            if (localStorage.getItem("tuneverse-vibe-open") === "0") setVibeOpen(false);
+        } catch {}
+    }, []);
+    const toggleVibe = () => {
+        const next = !vibeOpen;
+        setVibeOpen(next);
+        try { localStorage.setItem("tuneverse-vibe-open", next ? "1" : "0"); } catch {}
+    };
 
     const username = room.users.find((u) => u.id === socket?.id)?.username;
-    const isHost = room.hostId === socket?.id;
+    // The host and DJs can tidy the queue, not just their own picks.
+    const canManage = !!socket?.id && (room.hostId === socket.id || room.djIds.includes(socket.id));
 
     useEffect(() => {
         if (!socket) return;
@@ -40,7 +54,7 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     const askForSuggestions = (mood: string) => {
         if (!socket || isSuggesting) return;
         setIsSuggesting(true);
-        setShowMoods(false);
+        setAskedMood(mood);
         setSuggestions([]);
         socket.emit(EVENTS.RECOMMENDATIONS_REQUEST, { spotifyToken, mood });
     };
@@ -48,50 +62,67 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
     return (
         <div className="flex h-full flex-col">
             <div className="flex-1 overflow-y-auto">
-                {room.queue.length === 0 ? (
-                    <p className="p-8 text-center text-soft">
-                        Queue&apos;s empty. Add a song and it&apos;ll show up here.
-                    </p>
-                ) : (
-                    <ol>
-                        {room.queue.map((track, index) => {
-                            const hasVoted = !!socket && track.voters?.includes(socket.id ?? "");
-                            return (
-                                <li key={`${track.id}-${index}`} className="queue-row group flex items-center gap-3 border-b-2 border-wash px-4 py-3">
-                                    <span className="display w-6 shrink-0 text-2xl leading-none text-blue">{index + 1}</span>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-[15px]">{track.title}</p>
-                                        <p className="truncate text-xs text-soft">
-                                            {SOURCE_NAMES[track.source ?? "youtube"]} · added by {track.addedBy}
-                                        </p>
-                                    </div>
-                                    {(isHost || track.addedBy === username) && (
-                                        <button
-                                            onClick={() => socket?.emit(EVENTS.QUEUE_REMOVE, { index })}
-                                            className="ink-link shrink-0 text-xs font-semibold transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
-                                        >
-                                            Remove
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
-                                        aria-label={`Vote for ${track.title}, ${track.votes} votes so far`}
-                                        aria-pressed={hasVoted}
-                                        className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-on-pink" : "text-soft hover:bg-wash hover:text-on-pink"}`}
-                                    >
-                                        <svg viewBox="0 0 12 8" className="mb-1 h-2 w-3" fill="currentColor" aria-hidden="true"><path d="M6 0l6 8H0z" /></svg>
-                                        {track.votes || 0}
-                                    </button>
-                                </li>
-                            );
-                        })}
-                    </ol>
-                )}
+                {/* The vibe bubble: pick a mood (or type one) and get songs that fit. */}
+                <div className="border-b-2 border-rule bg-wash px-4 py-3">
+                    <button
+                        type="button"
+                        onClick={toggleVibe}
+                        aria-expanded={vibeOpen}
+                        aria-controls="vibe-picker"
+                        className="label flex w-full items-center justify-between text-soft transition-colors hover:text-ink"
+                    >
+                        What&apos;s the vibe?
+                        <svg viewBox="0 0 12 8" className={`h-2 w-3 transition-transform motion-reduce:transition-none ${vibeOpen ? "" : "-rotate-90"}`} fill="currentColor" aria-hidden="true"><path d="M0 0h12L6 8z" /></svg>
+                    </button>
+                    <div id="vibe-picker" hidden={!vibeOpen}>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                        {MOODS.map((mood) => (
+                            <button
+                                key={mood}
+                                onClick={() => askForSuggestions(mood)}
+                                disabled={isSuggesting}
+                                aria-pressed={askedMood === mood && (isSuggesting || suggestions.length > 0)}
+                                className="border-2 border-ink px-2.5 py-0.5 text-xs font-semibold transition-colors enabled:hover:bg-ink enabled:hover:text-paper disabled:opacity-50 aria-pressed:bg-ink aria-pressed:text-paper"
+                            >
+                                {mood}
+                            </button>
+                        ))}
+                    </div>
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            if (customMood.trim()) askForSuggestions(customMood.trim());
+                        }}
+                        className="mt-2 flex gap-2"
+                    >
+                        <input
+                            value={customMood}
+                            maxLength={100}
+                            onChange={(e) => setCustomMood(e.target.value)}
+                            placeholder="Or say it: rainy drive, 2000s bangers…"
+                            aria-label="Describe a mood"
+                            className="field min-w-0 flex-1 !py-1.5 text-sm"
+                        />
+                        <button
+                            type="submit"
+                            disabled={isSuggesting || !customMood.trim()}
+                            className="shrink-0 bg-pink px-3 text-sm font-bold text-on-pink transition-colors enabled:hover:bg-blue enabled:hover:text-paper disabled:opacity-40"
+                        >
+                            Go
+                        </button>
+                    </form>
+                    </div>
+                    {isSuggesting && (
+                        <p className="mt-2 flex items-center gap-2 text-sm text-soft" aria-live="polite">
+                            <Spinner /> Finding {askedMood.toLowerCase()} songs…
+                        </p>
+                    )}
+                </div>
 
                 {suggestions.length > 0 && (
-                    <div className="dropdown-enter border-b-2 border-rule bg-wash p-4">
+                    <div className="dropdown-enter border-b-2 border-rule bg-wash px-4 pb-4 pt-1">
                         <div className="flex items-baseline justify-between">
-                            <h3 className="display text-2xl text-blue">You might like</h3>
+                            <h3 className="display text-2xl text-blue">{askedMood} picks</h3>
                             <button onClick={() => setSuggestions([])} className="ink-link text-xs font-semibold">Close</button>
                         </div>
                         <ul className="mt-2">
@@ -115,48 +146,47 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                         </ul>
                     </div>
                 )}
-            </div>
 
-            <div className="relative border-t-2 border-rule p-4">
-                {showMoods && (
-                    <div className="dropdown-enter absolute inset-x-4 bottom-full z-30 mb-2 border-2 border-rule bg-paper p-3">
-                        <div className="flex flex-wrap gap-2">
-                            {MOODS.map((mood) => (
-                                <button
-                                    key={mood}
-                                    onClick={() => askForSuggestions(mood)}
-                                    className="border-2 border-ink px-3 py-1 text-sm font-semibold transition-colors hover:bg-ink hover:text-paper"
-                                >
-                                    {mood}
-                                </button>
-                            ))}
-                        </div>
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                if (customMood.trim()) askForSuggestions(customMood.trim());
-                            }}
-                        >
-                            <input
-                                value={customMood}
-                                maxLength={100}
-                                onChange={(e) => setCustomMood(e.target.value)}
-                                placeholder="Or describe a mood, then press enter"
-                                aria-label="Describe a mood"
-                                className="field mt-3 !py-2 text-sm"
-                            />
-                        </form>
-                    </div>
+                {room.queue.length === 0 ? (
+                    <p className="p-8 text-center text-soft">
+                        Queue&apos;s empty. Add a song and it&apos;ll show up here.
+                    </p>
+                ) : (
+                    <ol>
+                        {room.queue.map((track, index) => {
+                            const hasVoted = !!socket && track.voters?.includes(socket.id ?? "");
+                            return (
+                                <li key={`${track.id}-${index}`} className="queue-row group flex items-center gap-3 border-b-2 border-wash px-4 py-3">
+                                    <span className="display w-6 shrink-0 text-2xl leading-none text-blue">{index + 1}</span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-[15px]">{track.title}</p>
+                                        <p className="truncate text-xs text-soft">
+                                            {SOURCE_NAMES[track.source ?? "youtube"]} · added by {track.addedBy}
+                                        </p>
+                                    </div>
+                                    {(canManage || track.addedBy === username) && (
+                                        <button
+                                            onClick={() => socket?.emit(EVENTS.QUEUE_REMOVE, { index })}
+                                            className="ink-link shrink-0 text-xs font-semibold transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+                                        >
+                                            Remove
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
+                                        aria-label={hasVoted ? `Take back your vote for ${track.title}, ${track.votes} votes so far` : `Vote for ${track.title}, ${track.votes} votes so far`}
+                                        title={hasVoted ? "Tap again to take your vote back" : undefined}
+                                        aria-pressed={hasVoted}
+                                        className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-on-pink" : "text-soft hover:bg-wash hover:text-on-pink"}`}
+                                    >
+                                        <svg viewBox="0 0 12 8" className="mb-1 h-2 w-3" fill="currentColor" aria-hidden="true"><path d="M6 0l6 8H0z" /></svg>
+                                        {track.votes || 0}
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ol>
                 )}
-                <button
-                    onClick={() => setShowMoods((open) => !open)}
-                    disabled={isSuggesting}
-                    aria-expanded={showMoods}
-                    className="ink-link inline-flex items-center gap-2 text-sm font-bold"
-                >
-                    {isSuggesting && <Spinner />}
-                    {isSuggesting ? "Finding songs for you" : "Suggest songs"}
-                </button>
             </div>
         </div>
     );

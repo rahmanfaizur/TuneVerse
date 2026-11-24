@@ -15,12 +15,12 @@ interface SpotifyPlayerProps {
     room: PublicRoom;
     socket: Socket | null;
     getServerTime: () => number;
+    onDuration: (seconds: number) => void;
 }
 
-export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPlayerProps) {
+export default function SpotifyPlayer({ room, socket, getServerTime, onDuration }: SpotifyPlayerProps) {
     const { player, deviceId, isConnected, playTrack, connectSpotify, isConnecting, needsPremium } = useSpotify();
     const [currentTrack, setCurrentTrack] = useState<Spotify.Track | null>(null);
-    const [isPaused, setPaused] = useState(false);
     const [isActive, setActive] = useState(false);
 
     const latest = useRef({ room, socket });
@@ -37,7 +37,6 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
 
             const track = state.track_window.current_track;
             setCurrentTrack(track);
-            setPaused(state.paused);
             setActive(true);
 
             // The SDK has no "ended" event. A finished track shows up as paused at 0
@@ -88,31 +87,10 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [room.playback, player, deviceId, room.playbackSource, playTrack]);
 
-    const [position, setPosition] = useState(0);
-    const [duration, setDuration] = useState(0);
-
-    // Poll for progress
+    // The progress bar under the player needs the track length; Spotify knows it once it's playing.
     useEffect(() => {
-        if (!player || !isActive || isPaused) return;
-
-        const interval = setInterval(() => {
-            player.getCurrentState().then(state => {
-                if (state) {
-                    setPosition(state.position);
-                    setDuration(state.duration);
-                }
-            });
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [player, isActive, isPaused]);
-
-    // Update duration when track changes
-    useEffect(() => {
-        if (currentTrack) {
-            setDuration(currentTrack.duration_ms);
-        }
-    }, [currentTrack]);
+        if (currentTrack) onDuration(currentTrack.duration_ms / 1000);
+    }, [currentTrack, onDuration]);
 
     if (!isConnected || needsPremium) {
         const artwork = room.playback.meta?.artwork;
@@ -144,12 +122,6 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
     const displayArtist = currentTrack?.artists[0]?.name || room.playback.meta?.artist || "Unknown Artist";
     const displayImage = currentTrack?.album.images[0]?.url || room.playback.meta?.artwork;
 
-    const formatTime = (ms: number) => {
-        const seconds = Math.floor((ms / 1000) % 60);
-        const minutes = Math.floor((ms / 1000 / 60));
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
-
     return (
         // Laid out in a row so the cover, title and progress all fit inside a 16:9 frame.
         <div className="flex h-full w-full items-center gap-5 overflow-hidden bg-stage p-5 text-on-stage md:gap-8 md:p-10">
@@ -164,17 +136,6 @@ export default function SpotifyPlayer({ room, socket, getServerTime }: SpotifyPl
                 <p className="label opacity-85">Now playing on Spotify</p>
                 <h2 className="display mt-2 line-clamp-2 text-3xl md:text-5xl">{displayTitle}</h2>
                 <p className="mt-1 truncate text-lg opacity-85">{displayArtist}</p>
-
-                <div className="mt-5 flex items-center gap-3 text-xs tabular-nums">
-                    <span className="w-9">{formatTime(position)}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden bg-paper/20">
-                        <div
-                            className="h-full bg-pink transition-[width] duration-1000 ease-linear"
-                            style={{ width: `${duration ? (position / duration) * 100 : 0}%` }}
-                        />
-                    </div>
-                    <span className="w-9 text-right">{formatTime(duration)}</span>
-                </div>
 
                 {!isActive && <p className="mt-4 text-[15px] opacity-85">Getting Spotify ready…</p>}
             </div>

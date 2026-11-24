@@ -181,6 +181,19 @@ export default function ActiveRoom({ username }: { username: string }) {
                                             {user.id === socket?.id && <span className="text-soft"> (you)</span>}
                                         </span>
                                         {room.hostId === user.id && <span className="label bg-pink text-on-pink px-2 py-1">Host</span>}
+                                        {room.hostId !== user.id && room.djIds.includes(user.id) && (
+                                            <span className="label bg-blue text-paper px-2 py-1">DJ</span>
+                                        )}
+                                        {/* The host hands out the controls, one person at a time. */}
+                                        {room.hostId === socket?.id && user.id !== socket?.id && (
+                                            <button
+                                                onClick={() => socket?.emit(EVENTS.SET_DJ, { userId: user.id, isDj: !room.djIds.includes(user.id) })}
+                                                aria-label={room.djIds.includes(user.id) ? `Take the controls back from ${user.username}` : `Let ${user.username} control playback`}
+                                                className="ink-link shrink-0 text-xs font-semibold"
+                                            >
+                                                {room.djIds.includes(user.id) ? "Remove DJ" : "Make DJ"}
+                                            </button>
+                                        )}
                                     </li>
                                 ))}
                             </ul>
