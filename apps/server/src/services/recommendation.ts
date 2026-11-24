@@ -5,14 +5,17 @@ import { YouTubeService } from "./youtube";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
-const GEMINI_TIMEOUT_MS = 15000;
+// At busy times the free tier answers in about 20s, so 15 was cutting it off.
+const GEMINI_TIMEOUT_MS = 30000;
 
-// The "latest" alias keeps working when Google retires a specific version, which is
-// what broke this feature last time.
-const model = genAI.getGenerativeModel({
-    model: process.env.GEMINI_MODEL || "gemini-flash-lite-latest",
-    generationConfig: { responseMimeType: "application/json" },
-}, { timeout: GEMINI_TIMEOUT_MS });
+// The "latest" aliases keep working when Google retires a specific version, which is
+// what broke this feature last time. When one is overloaded (503), the other often isn't.
+const GEMINI_MODELS = [process.env.GEMINI_MODEL || "gemini-flash-lite-latest", "gemini-flash-latest"]
+    .filter((name, i, all) => all.indexOf(name) === i)
+    .map((name) => genAI.getGenerativeModel({
+        model: name,
+        generationConfig: { responseMimeType: "application/json" },
+    }, { timeout: GEMINI_TIMEOUT_MS }));
 
 interface TrackContext {
     title: string;
@@ -145,7 +148,18 @@ export class RecommendationService {
             Example: [{"title": "Song Name", "artist": "Artist Name"}]
         `;
 
-        const result = await model.generateContent(prompt);
+        let lastError: unknown;
+        let result;
+        for (const model of GEMINI_MODELS) {
+            try {
+                result = await model.generateContent(prompt);
+                break;
+            } catch (error) {
+                lastError = error;
+                console.warn(`Gemini ${model.model} failed, trying the next one:`, (error as Error).message?.slice(0, 120));
+            }
+        }
+        if (!result) throw lastError;
         const response = result.response;
         const text = response.text().replace(/```json|```/g, '').trim();
 
