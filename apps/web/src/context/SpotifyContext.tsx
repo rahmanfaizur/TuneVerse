@@ -39,6 +39,11 @@ interface SpotifyContextType {
 
 const SpotifyContext = createContext<SpotifyContextType | undefined>(undefined);
 
+// The player and the login flow can both complain about the same problem, sometimes many
+// times a second. One slot means a burst shows as one message, not a stack of them.
+const spotifyError = (message: string, options: Parameters<typeof toast.error>[1] = {}) =>
+    toast.error(message, { id: "spotify", ...options });
+
 const randomHex = (bytes: number) =>
     Array.from(crypto.getRandomValues(new Uint8Array(bytes)))
         .map((b) => b.toString(16).padStart(2, "0"))
@@ -92,7 +97,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
             });
 
             if (res.status === 401) {
-                toast.error("Your Spotify login expired. Connect again to keep listening.");
+                spotifyError("Your Spotify login expired. Connect again to keep listening.");
                 disconnectSpotify();
                 return null;
             }
@@ -120,7 +125,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         }
 
         if (loginError) {
-            toast.error(
+            spotifyError(
                 loginError === "denied"
                     ? "Spotify connection cancelled."
                     : "Couldn't connect Spotify. TuneVerse can only connect approved accounts for now."
@@ -132,7 +137,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem(OAUTH_STATE_KEY);
 
             if (!expectedState || expectedState !== returnedState) {
-                toast.error("Couldn't verify the Spotify login. Please try again.");
+                spotifyError("Couldn't verify the Spotify login. Please try again.");
                 return;
             }
 
@@ -157,7 +162,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
                 })
                 .catch((e) => {
                     console.error("Spotify login failed", e);
-                    toast.error("Couldn't finish connecting Spotify. Please try again.");
+                    spotifyError("Couldn't finish connecting Spotify. Please try again.");
                 });
             return;
         }
@@ -190,6 +195,29 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         return () => clearTimeout(timer);
     }, [expiresAt, refreshAccessToken]);
 
+    const connectSpotify = useCallback(() => {
+        const state = randomHex(16);
+        sessionStorage.setItem(OAUTH_STATE_KEY, state);
+        sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname);
+        setIsConnecting(true);
+
+        fetch(`${API_URL}/api/spotify/auth?state=${state}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (!data.authUrl) throw new Error("No auth URL in response");
+                window.location.href = data.authUrl;
+            })
+            .catch((err) => {
+                console.error("Failed to get Spotify auth URL", err);
+                setIsConnecting(false);
+                spotifyError("Couldn't reach Spotify. Please try again.");
+            });
+    }, []);
+
+    // A rejected login gets one refresh to recover (an expired token). If the player still
+    // says no, the saved login is no good: drop it and ask once, instead of failing on every page.
+    const authRetry = useRef<"none" | "running" | "done">("none");
+
     // Depends on isConnected and not the token, otherwise every refresh rebuilds the player.
     useEffect(() => {
         if (!isConnected) return;
@@ -216,17 +244,30 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
             });
 
             instance.addListener("ready", ({ device_id }) => {
+                authRetry.current = "none";
                 setDeviceId(device_id);
                 setSdkReady(true);
             });
             instance.addListener("not_ready", () => setSdkReady(false));
             instance.addListener("initialization_error", ({ message }) => {
                 console.error("Spotify player failed to start:", message);
-                toast.error("Spotify playback isn't supported in this browser.");
+                spotifyError("Spotify playback isn't supported in this browser.");
             });
             instance.addListener("authentication_error", ({ message }) => {
                 console.error("Spotify auth error:", message);
-                toast.error("Spotify rejected this login. Try reconnecting.");
+                if (authRetry.current === "running") return; // the same failure, reported twice
+                if (authRetry.current === "none") {
+                    authRetry.current = "running";
+                    refreshAccessToken().then((token) => {
+                        authRetry.current = "done";
+                        if (token && !cancelled) instance?.connect();
+                    });
+                    return;
+                }
+                disconnectSpotify();
+                spotifyError("Spotify needs you to connect again.", {
+                    action: { label: "Connect", onClick: () => connectSpotify() },
+                });
             });
             instance.addListener("account_error", () => setNeedsPremium(true));
 
@@ -253,7 +294,7 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
             setDeviceId(null);
             setSdkReady(false);
         };
-    }, [isConnected, refreshAccessToken]);
+    }, [isConnected, refreshAccessToken, disconnectSpotify, connectSpotify]);
 
     const playTrack = useCallback(async (uri: string, positionMs: number = 0) => {
         if (!tokenRef.current || !deviceId) return;
@@ -273,24 +314,6 @@ export function SpotifyProvider({ children }: { children: ReactNode }) {
         }
     }, [deviceId]);
 
-    const connectSpotify = useCallback(() => {
-        const state = randomHex(16);
-        sessionStorage.setItem(OAUTH_STATE_KEY, state);
-        sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname);
-        setIsConnecting(true);
-
-        fetch(`${API_URL}/api/spotify/auth?state=${state}`)
-            .then((res) => res.json())
-            .then((data) => {
-                if (!data.authUrl) throw new Error("No auth URL in response");
-                window.location.href = data.authUrl;
-            })
-            .catch((err) => {
-                console.error("Failed to get Spotify auth URL", err);
-                setIsConnecting(false);
-                toast.error("Couldn't reach Spotify. Please try again.");
-            });
-    }, []);
 
     return (
         <SpotifyContext.Provider value={{
