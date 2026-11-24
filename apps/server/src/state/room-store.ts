@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
+import { CHAT_PAGE_SIZE, ChatHistoryPage, PublicRoom, Room, RoomSummary, User, Video } from "@tuneverse/shared";
 import { RoomPersistence, RoomSnapshot } from "./room-persistence";
 
 // The "Database"
@@ -18,6 +18,8 @@ const graceFor = (room: Room) => (room.isPersistent ? SAVED_ROOM_GRACE_MS : EMPT
 
 // Keeps one big playlist paste from growing a room without end.
 export const MAX_QUEUE = 200;
+// Chat kept per room. Only the newest page rides along with room updates.
+const MAX_MESSAGES = 300;
 
 // Every change goes through here, so the saved copy keeps up.
 const touch = (room: Room): Room => {
@@ -55,6 +57,7 @@ export const toPublicRoom = (room: Room): PublicRoom => {
     return {
         ...rest,
         users: room.users.map(({ fingerprint, ...user }) => user),
+        messages: room.messages.slice(-CHAT_PAGE_SIZE),
     };
 };
 
@@ -111,9 +114,8 @@ export const RoomStore = {
 
         room.messages.push(message);
 
-        // Keep last 50 messages
-        if (room.messages.length > 50) {
-            room.messages.shift();
+        if (room.messages.length > MAX_MESSAGES) {
+            room.messages.splice(0, room.messages.length - MAX_MESSAGES);
         }
 
         return touch(room);
@@ -304,6 +306,15 @@ export const RoomStore = {
         room.queue.sort((a, b) => b.votes - a.votes);
 
         return touch(room);
+    },
+
+    // The page of chat just before a message the client already has.
+    chatHistory: (roomId: string, beforeId: string): ChatHistoryPage => {
+        const messages = rooms.get(roomId)?.messages ?? [];
+        const end = messages.findIndex((m) => m.id === beforeId);
+        if (end <= 0) return { messages: [], hasMore: false };
+        const start = Math.max(0, end - CHAT_PAGE_SIZE);
+        return { messages: messages.slice(start, end), hasMore: start > 0 };
     },
 
     getAllRooms: (): Room[] => {

@@ -38,6 +38,7 @@ const validators: Record<string, Validator> = {
     [EVENTS.RECOMMENDATIONS_REQUEST]: (p) =>
         p === undefined || (typeof p === "object" && p !== null && (p.mood === undefined || isText(p.mood, 100))),
     [EVENTS.CHAT_SEND]: (p) => isText(p?.text, MAX_CHAT_LENGTH),
+    [EVENTS.CHAT_HISTORY]: (p) => isText(p?.before, 64),
     [EVENTS.EMOJI_REACTION]: (p) => isText(p?.emoji, 16),
 };
 

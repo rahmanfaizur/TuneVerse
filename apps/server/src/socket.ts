@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io";
-import { EVENTS, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tuneverse/shared";
+import { EVENTS, ChatHistoryPage, CreateRoomPayload, JoinRoomPayload, SearchPayload } from "@tuneverse/shared";
 import { MAX_QUEUE, RoomStore, toPublicRoom } from "./state/room-store";
 import { isValidPayload } from "./socket-validation";
 import { RecommendationService } from "./services/recommendation";
@@ -546,6 +546,13 @@ export const setupSocket = (io: Server) => {
 
             RoomStore.addMessage(roomId, message);
             io.to(roomId).emit(EVENTS.CHAT_RECEIVE, message);
+        });
+
+        // Older chat, a page at a time, for whoever's in the room.
+        socket.on(EVENTS.CHAT_HISTORY, (payload: { before: string }, ack: (page: ChatHistoryPage) => void) => {
+            if (typeof ack !== "function") return;
+            const roomId = socketToRoom.get(socket.id);
+            ack(roomId ? RoomStore.chatHistory(roomId, payload.before) : { messages: [], hasMore: false });
         });
 
         // --- 7. REACTIONS ---
