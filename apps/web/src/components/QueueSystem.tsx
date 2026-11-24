@@ -75,7 +75,8 @@ export default function QueueSystem({ room, socket }: QueueSystemProps) {
                                     )}
                                     <button
                                         onClick={() => socket?.emit(EVENTS.QUEUE_UPVOTE, { videoId: track.id })}
-                                        aria-label={`Vote for ${track.title}, ${track.votes} votes so far`}
+                                        aria-label={hasVoted ? `Take back your vote for ${track.title}, ${track.votes} votes so far` : `Vote for ${track.title}, ${track.votes} votes so far`}
+                                        title={hasVoted ? "Tap again to take your vote back" : undefined}
                                         aria-pressed={hasVoted}
                                         className={`flex w-8 shrink-0 flex-col items-center py-1 text-xs font-bold leading-none transition-colors ${hasVoted ? "bg-pink text-on-pink" : "text-soft hover:bg-wash hover:text-on-pink"}`}
                                     >

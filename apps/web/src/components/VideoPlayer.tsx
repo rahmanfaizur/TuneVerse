@@ -172,8 +172,8 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
     };
 
     const voteSkip = () => {
-        if (!socket || hasVotedSkip) return;
-        socket.emit(EVENTS.SKIP_VOTE);
+        if (!socket) return;
+        socket.emit(EVENTS.SKIP_VOTE); // a second tap takes the vote back
     };
 
     const handleEnded = () => {
@@ -313,9 +313,10 @@ export default function VideoPlayer({ room, socket, onPickSource }: VideoPlayerP
                     ) : (
                         <button
                             onClick={voteSkip}
-                            disabled={hasVotedSkip}
-                            aria-label={`Vote to skip, ${skipVotes.length} of ${skipVotesNeeded} votes`}
-                            className="flex shrink-0 items-center gap-2 border-2 border-ink px-3 py-1.5 text-sm font-bold transition-colors enabled:hover:bg-ink enabled:hover:text-paper disabled:border-pink disabled:bg-pink disabled:text-on-pink"
+                            aria-pressed={hasVotedSkip}
+                            aria-label={hasVotedSkip ? `Take back your skip vote, ${skipVotes.length} of ${skipVotesNeeded} votes` : `Vote to skip, ${skipVotes.length} of ${skipVotesNeeded} votes`}
+                            title={hasVotedSkip ? "Tap again to take your vote back" : undefined}
+                            className={`flex shrink-0 items-center gap-2 border-2 px-3 py-1.5 text-sm font-bold transition-colors ${hasVotedSkip ? "border-pink bg-pink text-on-pink hover:border-ink" : "border-ink hover:bg-ink hover:text-paper"}`}
                         >
                             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
                             {hasVotedSkip ? "Voted" : "Skip"}
