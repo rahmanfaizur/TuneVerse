@@ -40,3 +40,13 @@ model RoomParticipant {
 
   @@unique([userId, roomId])
 }
+
+// Live rooms are kept in server memory. This is a copy of each one, so a restart
+// doesn't wipe them. The server creates the table itself on boot.
+model LiveRoom {
+  id        String   @id
+  data      Json
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("live_rooms")
+}
