@@ -308,10 +308,13 @@ export const RoomStore = {
         const video = room.queue.find((v) => v.id === videoId);
         if (!video) return undefined;
 
-        if (video.voters.includes(userId)) return room; // Already voted
-
-        video.votes += 1;
-        video.voters.push(userId);
+        // A second tap takes the vote back.
+        if (video.voters.includes(userId)) {
+            video.voters = video.voters.filter((id) => id !== userId);
+        } else {
+            video.voters.push(userId);
+        }
+        video.votes = video.voters.length;
 
         // Re-sort queue: Highest votes first
         room.queue.sort((a, b) => b.votes - a.votes);
@@ -347,12 +350,12 @@ export const RoomStore = {
         return touch(room);
     },
 
-    // Everyone else gets a vote. A majority of the room moves the song on.
+    // Everyone else gets a vote (a second tap takes it back). A majority of the room moves the song on.
     voteSkip: (roomId: string, userId: string): { room: Room; skipped: boolean } | undefined => {
         const room = rooms.get(roomId);
         if (!room || !room.playback.videoId || !room.users.some((u) => u.id === userId)) return undefined;
         const votes = new Set(room.skipVotes ?? []);
-        votes.add(userId);
+        if (votes.has(userId)) votes.delete(userId); else votes.add(userId);
         room.skipVotes = [...votes];
         if (votes.size >= skipVotesNeeded(room)) {
             RoomStore.skipTrack(roomId);
